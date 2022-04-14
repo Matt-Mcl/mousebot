@@ -1,10 +1,13 @@
+import sys
 import asyncio
 import json
 from datetime import datetime
 
 from aiotfm.client import Client
 
-with open('config.json') as f:
+directory = sys.argv[1]
+
+with open(f"{directory}/config.json") as f:
 	config = json.load(f)
 
 bot = Client(bot_role=True)
@@ -12,6 +15,7 @@ bot = Client(bot_role=True)
 boot_time = bot.loop.time()
 
 PREFIX="."
+
 
 @bot.event
 async def on_login_ready(*a):
@@ -27,17 +31,17 @@ async def on_ready():
 
 @bot.event
 async def on_whisper(message):
-	print(message)
-	if message.content == 'tribe':
-		await bot.enterTribeHouse()
-	await message.reply(message.content) # echo
+    if message.content == f"{PREFIX}time":
+        await message.reply(f"{datetime.now()} (UTC)")
+    else:
+        print(message)
+        await message.reply(message.content) # echo
 
 
 @bot.event
 async def on_room_message(message):
 	print(message)
-	if message.content == 'tribe':
-		await bot.enterTribeHouse()
+
 
 @bot.event
 async def on_tribe_message(author, message):
@@ -45,6 +49,7 @@ async def on_tribe_message(author, message):
         await bot.sendTribeMessage(f"{datetime.now()} (UTC)")
     else: 
         print(f"[Tribe Chat] {author}: {message}")
+
 
 @bot.event
 async def on_joined_room(room):
