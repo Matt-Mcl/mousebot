@@ -31,7 +31,9 @@ async def on_ready():
 
 @bot.event
 async def on_whisper(message):
-    if message.content == f"{PREFIX}time":
+    if message.content == f"{PREFIX}help":
+        await message.reply("Currently I don't do very much but I'm working on it! Commands: .time")
+    elif message.content == f"{PREFIX}time":
         await message.reply(f"{datetime.now()} (UTC)")
     else:
         print(message)
@@ -45,7 +47,9 @@ async def on_room_message(message):
 
 @bot.event
 async def on_tribe_message(author, message):
-    if message == f"{PREFIX}time":
+    if message == f"{PREFIX}help":
+        await bot.sendTribeMessage("Currently I don't do very much but I'm working on it! Commands: .time")
+    elif message == f"{PREFIX}time":
         await bot.sendTribeMessage(f"{datetime.now()} (UTC)")
     else: 
         print(f"[Tribe Chat] {author}: {message}")
