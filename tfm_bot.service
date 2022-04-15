@@ -1,0 +1,18 @@
+[Unit]
+After=network.service
+StartLimitIntervalSec=1d
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/mousebot/venv/bin/python -u /home/ubuntu/mousebot/tfm_bot.py /home/ubuntu/mousebot 
+Restart=on-failure
+RestartSec=30
+StartLimitBurst=5
+TimeoutStartSec=infinity
+
+StandardOutput=file:/var/log/mousebot/output.log
+StandardError=file:/var/log/mousebot/error.log
+
+[Install]
+WantedBy=default.target
