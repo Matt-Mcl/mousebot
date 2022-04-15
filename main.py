@@ -3,14 +3,14 @@ import asyncio
 import json
 from datetime import datetime
 
-from aiotfm.client import Client
+import aiotfm
 
 directory = sys.argv[1]
 
 with open(f"{directory}/config.json") as f:
 	config = json.load(f)
 
-bot = Client(bot_role=True)
+bot = aiotfm.Client(bot_role=True)
 
 boot_time = bot.loop.time()
 
@@ -31,13 +31,13 @@ async def on_ready():
 
 @bot.event
 async def on_whisper(message):
-    if message.content == f"{PREFIX}help":
-        await message.reply("Currently I don't do very much but I'm working on it! Commands: .time")
-    elif message.content == f"{PREFIX}time":
-        await message.reply(f"{datetime.now()} (UTC)")
-    else:
-        print(message)
-        await message.reply(message.content) # echo
+    if message.author.username != config['username']:
+        if message.content == f"{PREFIX}help":
+            await message.reply("Currently I don't do very much but I'm working on it! Commands: .time")
+        elif message.content == f"{PREFIX}time":
+            await message.reply(f"{datetime.now()} (UTC)")
+        else:
+            await message.reply(message.content) # echo
 
 
 @bot.event
