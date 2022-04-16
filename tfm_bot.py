@@ -1,4 +1,3 @@
-import os
 import sys
 import time
 import asyncio
@@ -92,6 +91,10 @@ async def on_whisper(message):
         await message.reply(f"{datetime.now()} (UTC)")
     elif message.content == f"{PREFIX}tribe":
         await tfm_bot.enterTribe()
+    elif message.content == f"{PREFIX}joke":
+        with open(f"{directory}/jokes.txt", "r") as file:
+            jokes = file.read().split("\n")
+            await tfm_bot.sendRoomMessage(random.choice(jokes))
     else:
         await message.reply(message.content) # echo
 
@@ -118,6 +121,10 @@ async def on_room_message(message):
                     await tfm_bot.sendRoomMessage(f"User {newuser} not in control list")
     elif message.content.startswith(f"{PREFIX}selfie"):
         await tfm_bot.playEmote(12)
+    elif message.content == f"{PREFIX}joke":
+        with open(f"{directory}/jokes.txt", "r") as file:
+            jokes = file.read().split("\n")
+            await tfm_bot.sendRoomMessage(random.choice(jokes))
     else:
         channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
         await channel.send(f"[TFM] {message.author.username}: {message.content}")
@@ -131,6 +138,10 @@ async def on_tribe_message(author, message):
         await tfm_bot.sendTribeMessage("Currently I don't do very much but I'm working on it! Commands: .time")
     elif message == f"{PREFIX}time":
         await tfm_bot.sendTribeMessage(f"{datetime.now()} (UTC)")
+    elif message == f"{PREFIX}joke":
+        with open(f"{directory}/jokes.txt", "r") as file:
+            jokes = file.read().split("\n")
+            await tfm_bot.sendTribeMessage(random.choice(jokes))
     else:
         channel = discord_bot.get_channel(int(TRIBE_CHAT))
         await channel.send(f"[TFM] {author.title()}: {message}")
