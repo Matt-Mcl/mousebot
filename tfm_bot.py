@@ -56,15 +56,15 @@ async def on_message(message):
     if message.author == discord_bot.user:
         return
     elif message.channel.id == int(TRIBE_CHAT):
-        await tfm_bot.sendTribeMessage(f"[Discord] {message.author.display_name}: {message.content}")
+        await tfm_bot.sendTribeMessage(f"[Discord] [{message.author.display_name}] {message.content}")
     elif message.channel.id == int(TRIBE_ROOM_CHAT):
-        await tfm_bot.sendRoomMessage(f"[Discord] {message.author.display_name}: {message.content}")
+        await tfm_bot.sendRoomMessage(f"[Discord] [{message.author.display_name}] {message.content}")
 
 
 
 
 
-# TFM Bot
+# Transformice Bot
 
 tfm_bot = aiotfm.Client(bot_role=True)
 
@@ -176,12 +176,16 @@ async def process_command(message, origin, author=None):
     # Admin commands
     if author_name.title() in CONTROL:
         if message_content.startswith(f"{PREFIX}greetings"):
-            # .greetings add/clear <name> <greeting>
+            # .greetings add/clear/list <name> <greeting>
             if split_message[1] == "add":
-                print(f"Inserting: name: {split_message[2].title()}, greeting: {' '.join(split_message[3:])}")
                 mousebot_greetings.insert_one({"name": split_message[2].title(), "greeting": " ".join(split_message[3:])})
+                output = f"Added greeting to {split_message[2].title()}"
             elif split_message[1] == "clear":
                 mousebot_greetings.delete_many({"name": split_message[2].title()})
+                output = f"Cleared greetings of {split_message[2].title()}"
+            elif split_message[1] == "list":
+                greetings_list = [g['greeting'] for g in mousebot_greetings.find({"name": split_message[2].title()}, { "_id": 0, "name": 0})]
+                output = f"Greetings for {split_message[2].title()}: {greetings_list}"
 
     # Room specific commands
     if origin == "room":
@@ -208,17 +212,17 @@ async def process_command(message, origin, author=None):
                         output = f"User {newuser} not in control list"
 
     if origin == "room":
-        if output is None:
-            channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
-            await channel.send(f"[TFM] {author_name}: {message_content}")
-        else:
+        channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
+        await channel.send(f"[TFM] [{author_name.title()}] {message_content}")
+        if output is not None:
             await tfm_bot.sendRoomMessage(output)
+            await channel.send(f"[TFM] [{config['username'].title()}] {output}")
     elif origin == "tribe":
-        if output is None:
-            channel = discord_bot.get_channel(int(TRIBE_CHAT))
-            await channel.send(f"[TFM] {author_name.title()}: {message_content}")
-        else:
+        channel = discord_bot.get_channel(int(TRIBE_CHAT))
+        await channel.send(f"[TFM] [{author_name.title()}] {message_content}")
+        if output is not None:
             await tfm_bot.sendTribeMessage(output)
+            await channel.send(f"[TFM] [{config['username'].title()}] {output}")
     elif origin == "whisper":
         if output is not None:
             await message.reply(output)
