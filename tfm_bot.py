@@ -4,6 +4,7 @@ import asyncio
 import json
 import aiotfm
 import random
+import pymongo
 from datetime import datetime
 from discord.ext import commands
 
@@ -23,6 +24,11 @@ LOG_CHAT = config['LOG_CHAT']
 CONTROL = config['CONTROL'][:]
 
 GREETINGS = ["Welcome Back!", "Hope you're having a great day!"]
+
+# Init Mongo DB
+mongo_client = pymongo.MongoClient()
+mousebot_db = mongo_client['mousebot']
+mousebot_greetings = mousebot_db['greetings']
 
 
 discord_bot = commands.Bot(command_prefix='.')
@@ -80,79 +86,31 @@ async def on_ready():
     await tfm_bot.enterTribe()
     
 
-
 @tfm_bot.event
 async def on_whisper(message):
-    if message.author.username == config['username']:
-        return
-    if message.content == f"{PREFIX}help":
-        await message.reply("Currently I don't do very much but I'm working on it! Commands: .time")
-    elif message.content == f"{PREFIX}time":
-        await message.reply(f"{datetime.now()} (UTC)")
-    elif message.content == f"{PREFIX}tribe":
-        await tfm_bot.enterTribe()
-    elif message.content == f"{PREFIX}joke":
-        with open(f"{directory}/jokes.txt", "r") as file:
-            jokes = file.read().split("\n")
-            await tfm_bot.sendRoomMessage(random.choice(jokes))
-    else:
-        await message.reply(message.content) # echo
+    await process_command(message, "whisper")
 
 
 @tfm_bot.event
 async def on_room_message(message):
-    split = message.content.split(" ")
-    if message.author.username == config['username']:
-        return
-    elif message.content.startswith(f"{PREFIX}control"):
-        if message.author.username in config['CONTROL']:
-            newuser = split[2]
-            if newuser in config['CONTROL']:
-                await tfm_bot.sendRoomMessage("Cannot modify admin user")
-                return
-            elif split[1] == "add":
-                CONTROL.append(newuser)
-                await tfm_bot.sendRoomMessage(f"Added {newuser} to control list")
-            elif split[1] == "del":
-                try:
-                    CONTROL.remove(newuser)
-                    await tfm_bot.sendRoomMessage(f"Removed {newuser} from control list")
-                except ValueError:
-                    await tfm_bot.sendRoomMessage(f"User {newuser} not in control list")
-    elif message.content.startswith(f"{PREFIX}selfie"):
-        await tfm_bot.playEmote(12)
-    elif message.content == f"{PREFIX}joke":
-        with open(f"{directory}/jokes.txt", "r") as file:
-            jokes = file.read().split("\n")
-            await tfm_bot.sendRoomMessage(random.choice(jokes))
-    else:
-        channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
-        await channel.send(f"[TFM] {message.author.username}: {message.content}")
+    await process_command(message, "room")
 
 
 @tfm_bot.event
 async def on_tribe_message(author, message):
-    if author == config['username'].lower():
-        return
-    elif message == f"{PREFIX}help":
-        await tfm_bot.sendTribeMessage("Currently I don't do very much but I'm working on it! Commands: .time")
-    elif message == f"{PREFIX}time":
-        await tfm_bot.sendTribeMessage(f"{datetime.now()} (UTC)")
-    elif message == f"{PREFIX}joke":
-        with open(f"{directory}/jokes.txt", "r") as file:
-            jokes = file.read().split("\n")
-            await tfm_bot.sendTribeMessage(random.choice(jokes))
-    else:
-        channel = discord_bot.get_channel(int(TRIBE_CHAT))
-        await channel.send(f"[TFM] {author.title()}: {message}")
+    await process_command(message, "tribe", author)
 
 
 @tfm_bot.event
 async def on_member_connected(name):
     channel = discord_bot.get_channel(int(TRIBE_CHAT))
+    db_greetings = list(mousebot_greetings.aggregate([
+        { "$match": {"name": name.title()} },
+        { "$sample": { "size": 1 } }
+    ]))
     greeting = random.choice(GREETINGS)
-    if name == "tosis#5187":
-        greeting = "Can you smell that? Oh, it's just Tosis!"
+    if len(db_greetings) > 0:
+        greeting = db_greetings[0]['greeting']
     
     await channel.send(f"[TFM] {name.title()} has just connected! {greeting}")
     await tfm_bot.sendTribeMessage(greeting)
@@ -167,6 +125,7 @@ async def on_member_disconnected(name):
 @tfm_bot.event
 async def on_server_message(message):
     channel = discord_bot.get_channel(int(LOG_CHAT))
+    print(f"[SERVER] {message}")
     await channel.send(f"[SERVER] {message}")
 
 
@@ -189,6 +148,81 @@ async def on_emoji(player, emoji):
 @tfm_bot.event
 async def on_joined_room(room):
     print('Joined room:', room)
+
+
+async def process_command(message, origin, author=None):
+    message_content = message
+    author_name = author
+
+    output = None
+    if author is None:
+        if message.author.username == config['username']:
+            return
+        author_name = message.author.username
+        message_content = message.content
+    if author == config['username'].lower():
+        return
+
+    split_message = message_content.split(" ")
+
+    # General commands
+    if message_content == f"{PREFIX}time": # .time
+        output = f"{datetime.now()} (UTC)"
+    elif message_content == f"{PREFIX}joke": # .joke
+        with open(f"{directory}/jokes.txt", "r") as file:
+            jokes = file.read().split("\n")
+            output = random.choice(jokes)
+
+    # Admin commands
+    if author_name.title() in CONTROL:
+        if message_content.startswith(f"{PREFIX}greetings"):
+            # .greetings add/clear <name> <greeting>
+            if split_message[1] == "add":
+                print(f"Inserting: name: {split_message[2].title()}, greeting: {' '.join(split_message[3:])}")
+                mousebot_greetings.insert_one({"name": split_message[2].title(), "greeting": " ".join(split_message[3:])})
+            elif split_message[1] == "clear":
+                mousebot_greetings.delete_many({"name": split_message[2].title()})
+
+    # Room specific commands
+    if origin == "room":
+        if message_content == f"{PREFIX}selfie": # .selfie
+            await tfm_bot.playEmote(12)
+
+    # Tribe and whisper specific commands
+    elif origin == "tribe" or origin == "whisper":
+        # .control add/del <username>
+        if message_content.startswith(f"{PREFIX}control"):
+            if author_name in config['CONTROL']:
+                newuser = split_message[2]
+                if newuser in config['CONTROL']:
+                    output = "Cannot modify admin user"
+                    return
+                elif split_message[1] == "add":
+                    CONTROL.append(newuser)
+                    output = f"Added {newuser} to control list"
+                elif split_message[1] == "del":
+                    try:
+                        CONTROL.remove(newuser)
+                        output = f"Removed {newuser} from control list"
+                    except ValueError:
+                        output = f"User {newuser} not in control list"
+
+    if origin == "room":
+        if output is None:
+            channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
+            await channel.send(f"[TFM] {author_name}: {message_content}")
+        else:
+            await tfm_bot.sendRoomMessage(output)
+    elif origin == "tribe":
+        if output is None:
+            channel = discord_bot.get_channel(int(TRIBE_CHAT))
+            await channel.send(f"[TFM] {author_name.title()}: {message_content}")
+        else:
+            await tfm_bot.sendTribeMessage(output)
+    elif origin == "whisper":
+        if output is not None:
+            await message.reply(output)
+
 
 
 loop = asyncio.get_event_loop()
