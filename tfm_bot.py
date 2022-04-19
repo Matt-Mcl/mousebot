@@ -51,19 +51,19 @@ async def on_message(message):
     if message.author == discord_bot.user:
         return
     elif message.channel.id == int(TRIBE_CHAT):
-        await tfm_bot.sendTribeMessage(f"[Discord] [{message.author.display_name}] {message.content}")
+        await send_tribe_message(f"[Discord] [{message.author.display_name}] {message.content}")
         if message.content.startswith(PREFIX):
-            output = await process_command(message.content, "tribe", message.author.display_name)
+            output = await process_command(message.content, "tribe", f"Discord_{message.author.display_name}")
             if output is not None:
-                await tfm_bot.sendTribeMessage(output)
-                await message.channel.send(f"[TFM] [{config['username'].title()}] {output}")
+                await send_tribe_message(output)
+                await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {output}")
     elif message.channel.id == int(TRIBE_ROOM_CHAT):
-        await tfm_bot.sendRoomMessage(f"[Discord] [{message.author.display_name}] {message.content}")
+        await send_room_message(f"[Discord] [{message.author.display_name}] {message.content}")
         if message.content.startswith(PREFIX):
-            output = await process_command(message.content, "room", message.author.display_name)
+            output = await process_command(message.content, "room", f"Discord_{message.author.display_name}")
             if output is not None:
-                await tfm_bot.sendRoomMessage(output)
-                await message.channel.send(f"[TFM] [{config['username'].title()}] {output}")
+                await send_room_message(output)
+                await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {output}")
 
 
 
@@ -96,6 +96,7 @@ async def on_whisper(message):
     output = await process_command(message.content, "whisper", author)
     if output is not None:
         await message.reply(output)
+        print(f"[WHISPER] [{author}] {output}")
 
 
 @tfm_bot.event
@@ -104,11 +105,11 @@ async def on_room_message(message):
     if author == config['username']:
         return
     channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
-    await channel.send(f"[TFM] [{author}] {message.content}")
+    await send_discord_message(channel, f"[TFM] [{author}] {message.content}")
     output = await process_command(message.content, "room", author)
     if output is not None:
-        await tfm_bot.sendRoomMessage(output)
-        await channel.send(f"[TFM] [{config['username'].title()}] {output}")
+        await send_room_message(output)
+        await send_discord_message(channel, f"[TFM] [{config['username'].title()}] {output}")
 
 
 @tfm_bot.event
@@ -117,11 +118,11 @@ async def on_tribe_message(author, message):
     if author == config['username']:
         return
     channel = discord_bot.get_channel(int(TRIBE_CHAT))
-    await channel.send(f"[TFM] [{author}] {message}")
+    await send_discord_message(channel, f"[TFM] [{author}] {message}")
     output = await process_command(message, "tribe", author)
     if output is not None:
-        await tfm_bot.sendTribeMessage(output)
-        await channel.send(f"[TFM] [{config['username'].title()}] {output}")
+        await send_tribe_message(output)
+        await send_discord_message(channel, f"[TFM] [{config['username'].title()}] {output}")
 
 
 @tfm_bot.event
@@ -135,21 +136,21 @@ async def on_member_connected(name):
     if len(db_greetings) > 0:
         greeting = db_greetings[0]['greeting']
     
-    await channel.send(f"[TFM] {name.title()} has just connected! {greeting}")
-    await tfm_bot.sendTribeMessage(greeting)
+    await send_discord_message(channel, f"[TFM] {name.title()} has just connected! {greeting}")
+    await send_tribe_message(greeting)
 
 
 @tfm_bot.event
 async def on_member_disconnected(name):
     channel = discord_bot.get_channel(int(TRIBE_CHAT))
-    await channel.send(f"[TFM] {name.title()} has just disconnected!")
+    await send_discord_message(channel, f"[TFM] {name.title()} has just disconnected!")
 
 
 @tfm_bot.event
 async def on_server_message(message):
     channel = discord_bot.get_channel(int(LOG_CHAT))
     print(f"[SERVER] {message}")
-    await channel.send(f"[SERVER] {message}")
+    await send_discord_message(channel, f"[SERVER] {message}")
 
 
 @tfm_bot.event
@@ -227,6 +228,21 @@ async def process_command(message, origin, author):
                         output = f"User {newuser} not in control list"
 
     return output
+
+
+async def send_tribe_message(message):
+    await tfm_bot.sendTribeMessage(message)
+    print(f"[tribe-chat] {message}")
+
+
+async def send_room_message(message):
+    await tfm_bot.sendRoomMessage(message)
+    print(f"[tribe-room-chat] {message}")
+
+
+async def send_discord_message(channel, message):
+    await channel.send(message)
+    print(f"[{channel}] {message}")
 
 
 loop = asyncio.get_event_loop()
