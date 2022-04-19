@@ -1,3 +1,4 @@
+import subprocess
 import sys
 import time
 import asyncio
@@ -8,8 +9,7 @@ import pymongo
 from datetime import datetime
 from discord.ext import commands
 
-# Discord Bot
-
+# Environment Variables
 directory = sys.argv[1]
 
 with open(f"{directory}/config.json") as f:
@@ -21,54 +21,22 @@ PREFIX = config['PREFIX']
 TRIBE_CHAT = config['TRIBE_CHAT']
 TRIBE_ROOM_CHAT = config['TRIBE_ROOM_CHAT']
 LOG_CHAT = config['LOG_CHAT']
+OWNER = config['OWNER']
 CONTROL = config['CONTROL'][:]
 
-GREETINGS = ["Welcome Back!"]
+GREETINGS = ["Howdy, partner!", "Hey, howdy, hi!", "Put that Coffee Cup down!", "Ahoy, matey!", "Hiya! Welcome back!", "This Message may be recorded for training purposes- I.. I mean Welcome back!", "Yo!", "What's up?", "Sup?", "Take a deep breath in.. Namaste! SHIT I DIDN'T NOTICE YOU THERE!! I mean.. Welcome back, creep!", "New phone, who dis?"]
+
 
 # Init Mongo DB
 mongo_client = pymongo.MongoClient()
 mousebot_db = mongo_client['mousebot']
 mousebot_greetings = mousebot_db['greetings']
+mousebot_titles = mousebot_db['titles']
 
 
-discord_bot = commands.Bot(command_prefix='.')
-
-
-@discord_bot.event
-async def on_ready():
-    for guild in discord_bot.guilds:
-        if guild.name == GUILD:
-            break
-
-    print(
-        f'{discord_bot.user} is connected to the following guild:\n'
-        f'{guild.name}(id: {guild.id})'
-    )
-
-
-@discord_bot.event
-async def on_message(message):
-    if message.author == discord_bot.user:
-        return
-    elif message.channel.id == int(TRIBE_CHAT):
-        await send_tribe_message(f"[Discord] [{message.author.display_name}] {message.content}")
-        if message.content.startswith(PREFIX):
-            output = await process_command(message.content, "tribe", f"Discord_{message.author.display_name}")
-            if output is not None:
-                await send_tribe_message(output)
-                await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {output}")
-    elif message.channel.id == int(TRIBE_ROOM_CHAT):
-        await send_room_message(f"[Discord] [{message.author.display_name}] {message.content}")
-        if message.content.startswith(PREFIX):
-            output = await process_command(message.content, "room", f"Discord_{message.author.display_name}")
-            if output is not None:
-                await send_room_message(output)
-                await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {output}")
-
-
-
-
-# Transformice Bot
+#######################################################################################################################
+################################################## TRANSFORMICE BOT ###################################################
+#######################################################################################################################
 
 tfm_bot = aiotfm.Client(bot_role=True)
 
@@ -93,10 +61,10 @@ async def on_ready():
 @tfm_bot.event
 async def on_whisper(message):
     author = message.author.username
-    output = await process_command(message.content, "whisper", author)
+    output = await process_command(message.content, "whisper", message.author)
     if output is not None:
         await message.reply(output)
-        print(f"[WHISPER] [{author}] {output}")
+        print(f"[Whisper] [{author}] {output}")
 
 
 @tfm_bot.event
@@ -106,7 +74,7 @@ async def on_room_message(message):
         return
     channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
     await send_discord_message(channel, f"[TFM] [{author}] {message.content}")
-    output = await process_command(message.content, "room", author)
+    output = await process_command(message.content, "room", message.author)
     if output is not None:
         await send_room_message(output)
         await send_discord_message(channel, f"[TFM] [{config['username'].title()}] {output}")
@@ -174,62 +142,122 @@ async def on_joined_room(room):
     print('Joined room:', room)
 
 
-async def process_command(message, origin, author):
-    output = None
+async def process_command(message, origin, author, discord=False):
+    author_name = author
+
+    if origin != "tribe" and not discord:
+        author_name = author.username
 
     split_message = message.split(" ")
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        output = f"Commands: .time, .joke"
+        return f"Commands: .time, .joke, .titles"
     elif message == f"{PREFIX}time": # .time
-        output = f"{datetime.now()} (UTC)"
+        return f"{datetime.now()} (UTC)"
     elif message == f"{PREFIX}joke": # .joke
         with open(f"{directory}/jokes.txt", "r") as file:
             jokes = file.read().split("\n")
-            output = random.choice(jokes)
+            return random.choice(jokes)
+    elif message == f"{PREFIX}titles": # .titles
+        pass
+        # print(author.profile.stats)
+        # cheese_totals = mousebot_titles.find({"type": "cheese_total"}, { "_id": 0, "type": 0})
+        # for item in cheese_totals:
+        #     if item['number'] > 0:
+        #         pass ## FINISH ##
+    
 
     # Admin commands
-    if author.title() in CONTROL:
+    if author_name.title() in CONTROL:
         if message.startswith(f"{PREFIX}greetings"):
             # .greetings add/clear/list <name> <greeting>
             if split_message[1] == "add":
                 mousebot_greetings.insert_one({"name": split_message[2].title(), "greeting": " ".join(split_message[3:])})
-                output = f"Added greeting to {split_message[2].title()}"
+                return f"Added greeting to {split_message[2].title()}"
             elif split_message[1] == "clear":
                 mousebot_greetings.delete_many({"name": split_message[2].title()})
-                output = f"Cleared greetings of {split_message[2].title()}"
+                return f"Cleared greetings of {split_message[2].title()}"
             elif split_message[1] == "list":
                 greetings_list = [g['greeting'] for g in mousebot_greetings.find({"name": split_message[2].title()}, { "_id": 0, "name": 0})]
-                output = f"Greetings for {split_message[2].title()}: {greetings_list}"
+                return f"Greetings for {split_message[2].title()}: {greetings_list}"
+        elif message.startswith(f"{PREFIX}control"):
+            # .control add/del <username>
+            newuser = split_message[2]
+            if newuser in config['CONTROL']:
+                return "Cannot modify admin user"
+            elif split_message[1] == "add":
+                CONTROL.append(newuser)
+                return f"Added {newuser} to control list"
+            elif split_message[1] == "del":
+                try:
+                    CONTROL.remove(newuser)
+                    return f"Removed {newuser} from control list"
+                except ValueError:
+                    return f"User {newuser} not in control list"
+
+    # Owner Commands
+    if author_name.title() in OWNER:
+        if message.startswith(f"{PREFIX}exec"): # .exec <command>
+            return subprocess.check_output(split_message[1:])
+        elif message == f"{PREFIX}restart":
+            subprocess.check_output(["sudo", "systemctl", "reset-failed", "mousebot.service"])
+            return subprocess.check_output(["sudo", "systemctl", "restart", "mousebot.service"])
+            
 
     # Room specific commands
     if origin == "room":
         if message == f"{PREFIX}selfie": # .selfie
             await tfm_bot.playEmote(12)
 
-    # Tribe and whisper specific commands
-    elif origin == "tribe" or origin == "whisper":
-        # .control add/del <username>
-        if message.startswith(f"{PREFIX}control"):
-            if author in config['CONTROL']:
-                newuser = split_message[2]
-                if newuser in config['CONTROL']:
-                    output = "Cannot modify admin user"
-                    return
-                elif split_message[1] == "add":
-                    CONTROL.append(newuser)
-                    output = f"Added {newuser} to control list"
-                elif split_message[1] == "del":
-                    try:
-                        CONTROL.remove(newuser)
-                        output = f"Removed {newuser} from control list"
-                    except ValueError:
-                        output = f"User {newuser} not in control list"
-
-    return output
+#######################################################################################################################
+################################################## TRANSFORMICE BOT ###################################################
+#######################################################################################################################
 
 
+#######################################################################################################################
+##################################################### DISCORD BOT #####################################################
+#######################################################################################################################
+
+discord_bot = commands.Bot(command_prefix='.')
+
+@discord_bot.event
+async def on_ready():
+    for guild in discord_bot.guilds:
+        if guild.name == GUILD:
+            break
+
+    print(
+        f'{discord_bot.user} is connected to the following guild:\n'
+        f'{guild.name}(id: {guild.id})'
+    )
+
+
+@discord_bot.event
+async def on_message(message):
+    if message.author == discord_bot.user:
+        return
+    elif message.channel.id == int(TRIBE_CHAT):
+        await send_tribe_message(f"[Discord] [{message.author.display_name}] {message.content}")
+        if message.content.startswith(PREFIX):
+            output = await process_command(message.content, "tribe", f"{message.author.id}", True)
+            if output is not None:
+                await send_tribe_message(output)
+                await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {output}")
+    elif message.channel.id == int(TRIBE_ROOM_CHAT):
+        await send_room_message(f"[Discord] [{message.author.display_name}] {message.content}")
+        if message.content.startswith(PREFIX):
+            output = await process_command(message.content, "room", f"{message.author.id}", True)
+            if output is not None:
+                await send_room_message(output)
+                await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {output}")
+
+#######################################################################################################################
+##################################################### DISCORD BOT #####################################################
+#######################################################################################################################
+
+
+# Helper functions
 async def send_tribe_message(message):
     await tfm_bot.sendTribeMessage(message)
     print(f"[tribe-chat] {message}")
@@ -245,6 +273,7 @@ async def send_discord_message(channel, message):
     print(f"[{channel}] {message}")
 
 
+# Main bot loops
 loop = asyncio.get_event_loop()
 loop.create_task(tfm_bot.start())
 loop.create_task(discord_bot.run(TOKEN))
