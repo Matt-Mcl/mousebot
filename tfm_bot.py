@@ -23,7 +23,7 @@ TRIBE_ROOM_CHAT = config['TRIBE_ROOM_CHAT']
 LOG_CHAT = config['LOG_CHAT']
 CONTROL = config['CONTROL'][:]
 
-GREETINGS = ["Welcome Back!", "Hope you're having a great day!"]
+GREETINGS = ["Welcome Back!"]
 
 # Init Mongo DB
 mongo_client = pymongo.MongoClient()
@@ -46,20 +46,24 @@ async def on_ready():
     )
 
 
-@discord_bot.command()
-async def test(ctx):
-    await ctx.send('test')
-
-
 @discord_bot.event
 async def on_message(message):
     if message.author == discord_bot.user:
         return
     elif message.channel.id == int(TRIBE_CHAT):
         await tfm_bot.sendTribeMessage(f"[Discord] [{message.author.display_name}] {message.content}")
+        if message.content.startswith(PREFIX):
+            output = await process_command(message.content, "tribe", message.author.display_name)
+            if output is not None:
+                await tfm_bot.sendTribeMessage(output)
+                await message.channel.send(f"[TFM] [{config['username'].title()}] {output}")
     elif message.channel.id == int(TRIBE_ROOM_CHAT):
         await tfm_bot.sendRoomMessage(f"[Discord] [{message.author.display_name}] {message.content}")
-
+        if message.content.startswith(PREFIX):
+            output = await process_command(message.content, "room", message.author.display_name)
+            if output is not None:
+                await tfm_bot.sendRoomMessage(output)
+                await message.channel.send(f"[TFM] [{config['username'].title()}] {output}")
 
 
 
@@ -88,17 +92,36 @@ async def on_ready():
 
 @tfm_bot.event
 async def on_whisper(message):
-    await process_command(message, "whisper")
+    author = message.author.username
+    output = await process_command(message.content, "whisper", author)
+    if output is not None:
+        await message.reply(output)
 
 
 @tfm_bot.event
 async def on_room_message(message):
-    await process_command(message, "room")
+    author = message.author.username
+    if author == config['username']:
+        return
+    channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
+    await channel.send(f"[TFM] [{author}] {message.content}")
+    output = await process_command(message.content, "room", author)
+    if output is not None:
+        await tfm_bot.sendRoomMessage(output)
+        await channel.send(f"[TFM] [{config['username'].title()}] {output}")
 
 
 @tfm_bot.event
 async def on_tribe_message(author, message):
-    await process_command(message, "tribe", author)
+    author = author.title()
+    if author == config['username']:
+        return
+    channel = discord_bot.get_channel(int(TRIBE_CHAT))
+    await channel.send(f"[TFM] [{author}] {message}")
+    output = await process_command(message, "tribe", author)
+    if output is not None:
+        await tfm_bot.sendTribeMessage(output)
+        await channel.send(f"[TFM] [{config['username'].title()}] {output}")
 
 
 @tfm_bot.event
@@ -150,32 +173,24 @@ async def on_joined_room(room):
     print('Joined room:', room)
 
 
-async def process_command(message, origin, author=None):
-    message_content = message
-    author_name = author
-
+async def process_command(message, origin, author):
     output = None
-    if author is None:
-        if message.author.username == config['username']:
-            return
-        author_name = message.author.username
-        message_content = message.content
-    if author == config['username'].lower():
-        return
 
-    split_message = message_content.split(" ")
+    split_message = message.split(" ")
 
     # General commands
-    if message_content == f"{PREFIX}time": # .time
+    if message == f"{PREFIX}help": # .help
+        output = f"Commands: .time, .joke"
+    elif message == f"{PREFIX}time": # .time
         output = f"{datetime.now()} (UTC)"
-    elif message_content == f"{PREFIX}joke": # .joke
+    elif message == f"{PREFIX}joke": # .joke
         with open(f"{directory}/jokes.txt", "r") as file:
             jokes = file.read().split("\n")
             output = random.choice(jokes)
 
     # Admin commands
-    if author_name.title() in CONTROL:
-        if message_content.startswith(f"{PREFIX}greetings"):
+    if author.title() in CONTROL:
+        if message.startswith(f"{PREFIX}greetings"):
             # .greetings add/clear/list <name> <greeting>
             if split_message[1] == "add":
                 mousebot_greetings.insert_one({"name": split_message[2].title(), "greeting": " ".join(split_message[3:])})
@@ -189,14 +204,14 @@ async def process_command(message, origin, author=None):
 
     # Room specific commands
     if origin == "room":
-        if message_content == f"{PREFIX}selfie": # .selfie
+        if message == f"{PREFIX}selfie": # .selfie
             await tfm_bot.playEmote(12)
 
     # Tribe and whisper specific commands
     elif origin == "tribe" or origin == "whisper":
         # .control add/del <username>
-        if message_content.startswith(f"{PREFIX}control"):
-            if author_name in config['CONTROL']:
+        if message.startswith(f"{PREFIX}control"):
+            if author in config['CONTROL']:
                 newuser = split_message[2]
                 if newuser in config['CONTROL']:
                     output = "Cannot modify admin user"
@@ -211,22 +226,7 @@ async def process_command(message, origin, author=None):
                     except ValueError:
                         output = f"User {newuser} not in control list"
 
-    if origin == "room":
-        channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
-        await channel.send(f"[TFM] [{author_name.title()}] {message_content}")
-        if output is not None:
-            await tfm_bot.sendRoomMessage(output)
-            await channel.send(f"[TFM] [{config['username'].title()}] {output}")
-    elif origin == "tribe":
-        channel = discord_bot.get_channel(int(TRIBE_CHAT))
-        await channel.send(f"[TFM] [{author_name.title()}] {message_content}")
-        if output is not None:
-            await tfm_bot.sendTribeMessage(output)
-            await channel.send(f"[TFM] [{config['username'].title()}] {output}")
-    elif origin == "whisper":
-        if output is not None:
-            await message.reply(output)
-
+    return output
 
 
 loop = asyncio.get_event_loop()
