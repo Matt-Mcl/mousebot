@@ -160,12 +160,37 @@ async def process_command(message, origin, author, discord=False):
             jokes = file.read().split("\n")
             return random.choice(jokes)
     elif message == f"{PREFIX}titles": # .titles
-        pass
-        # print(author.profile.stats)
-        # cheese_totals = mousebot_titles.find({"type": "cheese_total"}, { "_id": 0, "type": 0})
-        # for item in cheese_totals:
-        #     if item['number'] > 0:
-        #         pass ## FINISH ##
+        await tfm_bot.sendCommand(f"profile {author_name.title()}")
+        profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.title())
+        cheese = profile.stats.gatheredCheese
+        firsts = profile.stats.firsts
+        bootcamps = profile.stats.bootcamps
+        normalModeSaves = profile.stats.normalModeSaves
+        hardModeSaves = profile.stats.hardModeSaves
+        divineModeSaves = profile.stats.divineModeSaves
+
+        titles = {"cheese_title": "", "first_title": "", "bootcamp_title": "", "normal_title": "", "hard_title": "", "divine_title": ""}
+        db_titles = list(mousebot_titles.find())
+        for item in db_titles:
+            if item['type'] == "cheese_total" and item['number'] > cheese and len(titles['cheese_title']) == 0:
+                titles['cheese_title'] = f"{item['number'] - cheese} cheese for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "cheese_first" and item['number'] > firsts and len(titles['first_title']) == 0:
+                titles['first_title'] = f"{item['number'] - firsts} firsts for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "bootcamp" and item['number'] > bootcamps and len(titles['bootcamp_title']) == 0:
+                titles['bootcamp_title'] = f"{item['number'] - bootcamps} bootcamps for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "normal_saves" and item['number'] > normalModeSaves and len(titles['normal_title']) == 0:
+                titles['normal_title'] = f"{item['number'] - normalModeSaves} saves for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "hard_saves" and item['number'] > hardModeSaves and len(titles['hard_title']) == 0:
+                titles['hard_title'] = f"{item['number'] - hardModeSaves} hard mode saves for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "divine_saves" and item['number'] > divineModeSaves and len(titles['divine_title']) == 0:
+                titles['divine_title'] = f"{item['number'] - divineModeSaves} divine mode saves for «{'/'.join(item['titles'])}»"
+        
+        # Remove Blanks
+        titles = {k: v for k, v in titles.items() if v}
+        if len(titles) == 0:
+            return f"{author_name.title()}, you have unlocked every title!"
+
+        return f"{author_name.title()}, {', '.join(list(titles.values()))}"
     
 
     # Admin commands
