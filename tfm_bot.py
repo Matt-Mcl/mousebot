@@ -199,11 +199,14 @@ async def process_command(message, origin, author, discord=False):
     # Owner Commands
     if author_name.title() in OWNER:
         if message.startswith(f"{PREFIX}exec"): # .exec <command>
-            return subprocess.check_output(split_message[1:])
+            return subprocess.check_output(split_message[1:]).decode("utf-8").strip()
         elif message == f"{PREFIX}restart":
             subprocess.check_output(["sudo", "systemctl", "reset-failed", "mousebot.service"])
-            return subprocess.check_output(["sudo", "systemctl", "restart", "mousebot.service"])
-            
+            return subprocess.check_output(["sudo", "systemctl", "restart", "mousebot.service"]).decode("utf-8").strip()
+        elif message == f"{PREFIX}status":
+            status = subprocess.Popen(["systemctl", "status", "mousebot.service"], stdout=subprocess.PIPE)
+            output = subprocess.check_output(["grep", "active"], stdin=status.stdout).decode("utf-8").rsplit(" ", 3)[0].strip()
+            return output
 
     # Room specific commands
     if origin == "room":
