@@ -162,11 +162,17 @@ async def process_command(message, origin, author, discord=False):
             jokes = file.read().split("\n")
             return random.choice(jokes)
     elif message == f"{PREFIX}joke":
-        json = requests.get("https://v2.jokeapi.dev/joke/Miscellaneous,Dark,Pun,Spooky,Christmas?blacklistFlags=racist").json()
-        if json['type'] == "twopart":
-            return f"{json['setup']} {json['delivery']}"
-        else:
-            return json['joke'] 
+        choice = random.randint(1, 2)
+        if choice == 1:
+            json = requests.get("https://v2.jokeapi.dev/joke/Miscellaneous,Dark,Pun,Spooky,Christmas?blacklistFlags=racist").json()
+            if json['type'] == "twopart":
+                return f"{json['setup']} {json['delivery']}"
+            else:
+                return json['joke'] 
+        elif choice == 2:
+            json = requests.get("https://icanhazdadjoke.com", headers={"Accept": "application/json"}).json()
+            return json['joke']
+
     elif message.startswith(f"{PREFIX}title"): # .title <player>
         offline = ""
         if len(split_message) > 1:
