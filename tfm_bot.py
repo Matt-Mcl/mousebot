@@ -6,6 +6,7 @@ import json
 import aiotfm
 import random
 import pymongo
+import requests
 from datetime import datetime
 from discord.ext import commands
 
@@ -25,7 +26,7 @@ OWNER = config['OWNER']
 CONTROL = config['CONTROL'][:]
 
 GREETINGS = ["Howdy, partner!", "Hey, howdy, hi!", "Put that Coffee Cup down!", "Ahoy, matey!", "Hiya! Welcome back!", "This Message may be recorded for training purposes- I.. I mean Welcome back!", "Yo!", "What's up?", "Sup?", "Take a deep breath in.. Namaste! SHIT I DIDN'T NOTICE YOU THERE!! I mean.. Welcome back, creep!", "New phone, who dis?"]
-
+EIGHT_BALL = ["It is certain.", "It is decidedly so.", "Without a doubt.", "Yes definitely.", "You may rely on it.", "As I see it, yes.", "Most likely.", "Outlook good.", "Yes.", "Signs point to yes.", "Reply hazy, try again.", "Ask again later.", "Better not tell you now.", "Cannot predict now.", "Concentrate and ask again.", "Don't count on it.", "My reply is no.", "My sources say no.", "Outlook not so good.", "Very doubtful."]
 
 # Init Mongo DB
 mongo_client = pymongo.MongoClient()
@@ -153,27 +154,42 @@ async def process_command(message, origin, author, discord=False):
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        return f"I'm a bot for the tribe Coffee Corner! Commands: .time, .joke, .titles [player], .online"
+        return f"I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player], .online, .8ball <message>"
     elif message == f"{PREFIX}time": # .time
         return f"{datetime.now()} (UTC)"
-    elif message == f"{PREFIX}joke": # .joke
+    elif message == f"{PREFIX}mom": # .mom
         with open(f"{directory}/jokes.txt", "r") as file:
             jokes = file.read().split("\n")
             return random.choice(jokes)
-    elif message.startswith(f"{PREFIX}titles"): # .titles <player>
+    elif message == f"{PREFIX}joke":
+        json = requests.get("https://v2.jokeapi.dev/joke/Miscellaneous,Dark,Pun,Spooky,Christmas?blacklistFlags=racist").json()
+        if json['type'] == "twopart":
+            return f"{json['setup']} {json['delivery']}"
+        else:
+            return json['joke'] 
+    elif message.startswith(f"{PREFIX}title"): # .title <player>
+        offline = ""
         if len(split_message) > 1:
             author_name = split_message[1]
         await tfm_bot.sendCommand(f"profile {author_name}")
         try:
-            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.title(), timeout=10)
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.title(), timeout=2)
+            cheese = profile.stats.gatheredCheese
+            firsts = profile.stats.firsts
+            bootcamps = profile.stats.bootcamps
+            normalModeSaves = profile.stats.normalModeSaves
+            hardModeSaves = profile.stats.hardModeSaves
+            divineModeSaves = profile.stats.divineModeSaves
         except asyncio.exceptions.TimeoutError:
-            return f"{author_name.title()} is not a user or is not online."
-        cheese = profile.stats.gatheredCheese
-        firsts = profile.stats.firsts
-        bootcamps = profile.stats.bootcamps
-        normalModeSaves = profile.stats.normalModeSaves
-        hardModeSaves = profile.stats.hardModeSaves
-        divineModeSaves = profile.stats.divineModeSaves
+            json = requests.get(f"https://cheese.formice.com/api/players/{author_name.title().replace('#', '-')}").json()
+            cheese = json['stats']['mouse']['cheese']
+            firsts = json['stats']['mouse']['first']
+            bootcamps = json['stats']['mouse']['bootcamp']
+            normalModeSaves = json['stats']['shaman']['saves_normal']
+            hardModeSaves = json['stats']['shaman']['saves_hard']
+            divineModeSaves = json['stats']['shaman']['saves_divine']
+            offline = "(Offline) "
+
         titles = {"cheese_title": "", "first_title": "", "bootcamp_title": "", "normal_title": "", "hard_title": "", "divine_title": ""}
 
         for item in db_titles:
@@ -193,9 +209,9 @@ async def process_command(message, origin, author, discord=False):
         # Remove Blanks
         titles = {k: v for k, v in titles.items() if v}
         if len(titles) == 0:
-            return f"{author_name.title()}, you have unlocked every title!"
+            return f"{offline}{author_name.title()}: has unlocked every title!"
 
-        return f"{author_name.title()}, {', '.join(list(titles.values()))}"
+        return f"{offline}{author_name.title()}, {', '.join(list(titles.values()))}"
     elif message == f"{PREFIX}online": # .online
         tribe = await tfm_bot.getTribe()
         members = tribe.members
@@ -218,6 +234,10 @@ async def process_command(message, origin, author, discord=False):
             #     print(item.id, item.category, item.cheese, item.fraise, item.special)
             # print(item.id, item.category, item.cheese, item.fraise, item.special)
         # print("done")
+    elif message.startswith(f"{PREFIX}8ball"):
+        if len(split_message) == 1:
+            return "Please ask a question."
+        return random.choice(EIGHT_BALL)
 
     # Admin commands
     if author_name.title() in CONTROL:

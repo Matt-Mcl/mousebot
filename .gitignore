@@ -131,3 +131,4 @@ dmypy.json
 # Bot environment
 config.json
 jokes.txt
+._*
