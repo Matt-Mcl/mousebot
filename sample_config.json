@@ -1,0 +1,16 @@
+{
+    "username": "MY_BOT_NAME",
+    "password": "MY_BOT_PASSWORD",
+    "encrypted": false,
+    "room": "*#MY_ROOM_NAME",
+    "PREFIX": ".",
+    "DISCORD_TOKEN": "MY_DISCORD_TOKEN",
+    "DISCORD_GUILD": "MY_DISCORD_GUILD_ID",
+    "TRIBE_CHAT": "MY_TRIBE_CHAT_ID",
+    "TRIBE_ROOM_CHAT": "MY_TRIBE_ROOM_CHAT_ID",
+    "LOG_CHAT": "MY_LOG_CHAT_ID",
+    "OWNER": ["MY_TFM_NAME", "MY_DISCORD_ID"],
+    "CONTROL": [
+        "MY_LIST_OF_ADMINS"
+    ]
+}
