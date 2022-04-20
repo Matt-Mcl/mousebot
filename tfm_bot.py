@@ -32,6 +32,7 @@ mongo_client = pymongo.MongoClient()
 mousebot_db = mongo_client['mousebot']
 mousebot_greetings = mousebot_db['greetings']
 mousebot_titles = mousebot_db['titles']
+db_titles = list(mousebot_titles.find())
 
 
 #######################################################################################################################
@@ -152,25 +153,29 @@ async def process_command(message, origin, author, discord=False):
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        return f"Commands: .time, .joke, .titles"
+        return f"I'm a bot for the tribe Coffee Corner! Commands: .time, .joke, .titles [player], .online"
     elif message == f"{PREFIX}time": # .time
         return f"{datetime.now()} (UTC)"
     elif message == f"{PREFIX}joke": # .joke
         with open(f"{directory}/jokes.txt", "r") as file:
             jokes = file.read().split("\n")
             return random.choice(jokes)
-    elif message == f"{PREFIX}titles": # .titles
-        await tfm_bot.sendCommand(f"profile {author_name.title()}")
-        profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.title())
+    elif message.startswith(f"{PREFIX}titles"): # .titles <player>
+        if len(split_message) > 1:
+            author_name = split_message[1]
+        await tfm_bot.sendCommand(f"profile {author_name}")
+        try:
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.title(), timeout=10)
+        except asyncio.exceptions.TimeoutError:
+            return f"{author_name.title()} is not a user or is not online."
         cheese = profile.stats.gatheredCheese
         firsts = profile.stats.firsts
         bootcamps = profile.stats.bootcamps
         normalModeSaves = profile.stats.normalModeSaves
         hardModeSaves = profile.stats.hardModeSaves
         divineModeSaves = profile.stats.divineModeSaves
-
         titles = {"cheese_title": "", "first_title": "", "bootcamp_title": "", "normal_title": "", "hard_title": "", "divine_title": ""}
-        db_titles = list(mousebot_titles.find())
+
         for item in db_titles:
             if item['type'] == "cheese_total" and item['number'] > cheese and len(titles['cheese_title']) == 0:
                 titles['cheese_title'] = f"{item['number'] - cheese} cheese for «{'/'.join(item['titles'])}»"
@@ -191,7 +196,28 @@ async def process_command(message, origin, author, discord=False):
             return f"{author_name.title()}, you have unlocked every title!"
 
         return f"{author_name.title()}, {', '.join(list(titles.values()))}"
-    
+    elif message == f"{PREFIX}online": # .online
+        tribe = await tfm_bot.getTribe()
+        members = tribe.members
+        online = []
+        for member in members:
+            if member.online and member.name.title() != config['username']:
+                online.append(member.name.title())
+        if len(online) > 0:
+            return f"Online Players: {', '.join(online)}"
+        else:
+            return "No one is online."
+    elif message == f"{PREFIX}shop": # .shop
+        pass # Pass for now
+        await tfm_bot.requestShopList()
+        shop = await tfm_bot.wait_for('on_shop', timeout=10)
+        # for item in shop.items:
+            # if item.is_new:
+            #     print(item.id, item.category, item.cheese, item.fraise, item.special)
+            # if item.fraise == 65:
+            #     print(item.id, item.category, item.cheese, item.fraise, item.special)
+            # print(item.id, item.category, item.cheese, item.fraise, item.special)
+        # print("done")
 
     # Admin commands
     if author_name.title() in CONTROL:
@@ -226,8 +252,8 @@ async def process_command(message, origin, author, discord=False):
         if message.startswith(f"{PREFIX}exec"): # .exec <command>
             return subprocess.check_output(split_message[1:]).decode("utf-8").strip()
         elif message == f"{PREFIX}restart":
-            subprocess.check_output(["sudo", "systemctl", "reset-failed", "mousebot.service"])
-            return subprocess.check_output(["sudo", "systemctl", "restart", "mousebot.service"]).decode("utf-8").strip()
+            subprocess.run(["sudo", "systemctl", "reset-failed", "mousebot.service"])
+            subprocess.run(["sudo", "systemctl", "restart", "mousebot.service"])
         elif message == f"{PREFIX}status":
             status = subprocess.Popen(["systemctl", "status", "mousebot.service"], stdout=subprocess.PIPE)
             output = subprocess.check_output(["grep", "active"], stdin=status.stdout).decode("utf-8").rsplit(" ", 3)[0].strip()
