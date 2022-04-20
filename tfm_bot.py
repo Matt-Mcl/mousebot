@@ -106,14 +106,14 @@ async def on_member_connected(name):
     if len(db_greetings) > 0:
         greeting = db_greetings[0]['greeting']
     
-    await send_discord_message(channel, f"[TFM] {name.title()} has just connected! {greeting}")
+    await send_discord_message(channel, f"[TFM] {name.title()} has connected! {greeting}")
     await send_tribe_message(greeting)
 
 
 @tfm_bot.event
 async def on_member_disconnected(name):
     channel = discord_bot.get_channel(int(TRIBE_CHAT))
-    await send_discord_message(channel, f"[TFM] {name.title()} has just disconnected!")
+    await send_discord_message(channel, f"[TFM] {name.title()} has disconnected.")
 
 
 @tfm_bot.event
@@ -154,7 +154,7 @@ async def process_command(message, origin, author, discord=False):
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        return f"I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player], .online, .8ball <message>"
+        return f"I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>"
     elif message == f"{PREFIX}time": # .time
         return f"{datetime.now()} (UTC)"
     elif message == f"{PREFIX}mom": # .mom

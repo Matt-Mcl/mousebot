@@ -11,8 +11,8 @@ RestartSec=30
 StartLimitBurst=5
 TimeoutStartSec=infinity
 
-StandardOutput=file:/var/log/mousebot/output.log
-StandardError=file:/var/log/mousebot/error.log
+StandardOutput=append:/var/log/mousebot/output.log
+StandardError=append:/var/log/mousebot/output.log
 
 [Install]
 WantedBy=default.target
