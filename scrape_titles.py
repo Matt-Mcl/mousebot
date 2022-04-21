@@ -31,7 +31,7 @@ parse(soup.find("table", {"id": "tableCheeseBootcamp"}), "bootcamp")
 parse(soup.find("table", {"id": "tableShamanNormal"})[0], "normal_saves")
 parse(soup.find("table", {"id": "tableShamanHard"}), "hard_saves")
 parse(soup.find("table", {"id": "tableShamanDivine"}), "divine_saves")
-# parse(soup.find("table", {"id": "tableShamanNormal"})[1], "no_skill_saves")
+parse(soup.find("table", {"id": "tableShamanNormal"})[1], "without_skill_saves")
 
 cheese_totals = list(mousebot_titles.find({"type": "cheese_total"}, { "_id": 0, "type": 0}))
 cheese_firsts = list(mousebot_titles.find({"type": "cheese_first"}, { "_id": 0, "type": 0}))
@@ -41,7 +41,7 @@ bootcamps = list(mousebot_titles.find({"type": "bootcamp"}, { "_id": 0, "type": 
 normal_saves = list(mousebot_titles.find({"type": "normal_saves"}, { "_id": 0, "type": 0}))
 hard_saves = list(mousebot_titles.find({"type": "hard_saves"}, { "_id": 0, "type": 0}))
 divine_saves = list(mousebot_titles.find({"type": "divine_saves"}, { "_id": 0, "type": 0}))
-# no_skill_saves = list(mousebot_titles.find({"type": "no_skill_saves"}, { "_id": 0, "type": 0}))
+without_skill_saves = list(mousebot_titles.find({"type": "without_skill_saves"}, { "_id": 0, "type": 0}))
 
 # print(cheese_totals)
 # print(cheese_firsts)
@@ -51,4 +51,4 @@ divine_saves = list(mousebot_titles.find({"type": "divine_saves"}, { "_id": 0, "
 # print(normal_saves)
 # print(hard_saves)
 # print(divine_saves)
-# print(no_skill_saves)
+# print(without_skill_saves)

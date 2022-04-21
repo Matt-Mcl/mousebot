@@ -7,6 +7,7 @@ import aiotfm
 import random
 import pymongo
 import requests
+from helpers import parser
 from datetime import datetime
 from discord.ext import commands
 
@@ -130,7 +131,6 @@ async def on_emoji(player, emoji):
     if player.username in CONTROL:
         await tfm_bot.sendSmiley(emoji)
 
-
 # @tfm_bot.event
 # async def on_emote(player, emote, flag):
 #     if player.username == config['username']:
@@ -142,6 +142,16 @@ async def on_emoji(player, emoji):
 @tfm_bot.event
 async def on_joined_room(room):
     print('Joined room:', room)
+
+
+# @tfm_bot.event
+# async def on_raw_socket(connection, packet):
+#     exclude = [(4, 3), (4, 4), (8, 16), (28, 6)]
+#     CCC = packet.readCode()
+#     if CCC in exclude:
+#         return
+#     print(packet, CCC)
+
 
 
 async def process_command(message, origin, author, discord=False):
@@ -179,15 +189,19 @@ async def process_command(message, origin, author, discord=False):
             author_name = split_message[1]
         await tfm_bot.sendCommand(f"profile {author_name}")
         try:
-            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.title(), timeout=2)
+            _, profile_packet = await tfm_bot.wait_for('on_raw_socket', lambda _, p: p.readCode() == (8, 16), timeout=2)
+            profile = parser.Profile(profile_packet)
             cheese = profile.stats.gatheredCheese
             firsts = profile.stats.firsts
             bootcamps = profile.stats.bootcamps
             normalModeSaves = profile.stats.normalModeSaves
             hardModeSaves = profile.stats.hardModeSaves
             divineModeSaves = profile.stats.divineModeSaves
+            withoutSkillSaves = profile.stats.withoutSkillSaves
         except asyncio.exceptions.TimeoutError:
             json = requests.get(f"https://cheese.formice.com/api/players/{author_name.title().replace('#', '-')}").json()
+            if "error" in json:
+                return json['message']
             cheese = json['stats']['mouse']['cheese']
             firsts = json['stats']['mouse']['first']
             bootcamps = json['stats']['mouse']['bootcamp']
@@ -195,8 +209,10 @@ async def process_command(message, origin, author, discord=False):
             hardModeSaves = json['stats']['shaman']['saves_hard']
             divineModeSaves = json['stats']['shaman']['saves_divine']
             offline = "(Offline) "
+        except:
+            pass
 
-        titles = {"cheese_title": "", "first_title": "", "bootcamp_title": "", "normal_title": "", "hard_title": "", "divine_title": ""}
+        titles = {"cheese_title": "", "first_title": "", "bootcamp_title": "", "normal_title": "", "hard_title": "", "divine_title": "", "without_title": ""}
 
         for item in db_titles:
             if item['type'] == "cheese_total" and item['number'] > cheese and len(titles['cheese_title']) == 0:
@@ -211,6 +227,9 @@ async def process_command(message, origin, author, discord=False):
                 titles['hard_title'] = f"{item['number'] - hardModeSaves} hard mode saves for «{'/'.join(item['titles'])}»"
             elif item['type'] == "divine_saves" and item['number'] > divineModeSaves and len(titles['divine_title']) == 0:
                 titles['divine_title'] = f"{item['number'] - divineModeSaves} divine mode saves for «{'/'.join(item['titles'])}»"
+            if offline == "":
+                if item['type'] == "without_skill_saves" and item['number'] > withoutSkillSaves and len(titles['without_title']) == 0:
+                    titles['without_title'] = f"{item['number'] - withoutSkillSaves} without skill saves for «{'/'.join(item['titles'])}»"
         
         # Remove Blanks
         titles = {k: v for k, v in titles.items() if v}
@@ -230,20 +249,28 @@ async def process_command(message, origin, author, discord=False):
         else:
             return "No one is online."
     elif message == f"{PREFIX}shop": # .shop
-        pass # Pass for now
         await tfm_bot.requestShopList()
-        shop = await tfm_bot.wait_for('on_shop', timeout=10)
+        # shop = await tfm_bot.wait_for('on_shop', timeout=10)
+        # print(shop)
+        # _, shop_packet = await tfm_bot.wait_for('on_raw_socket', lambda _, p: p.readCode() == (20, 3), timeout=30)
+        # print(shop_packet)
         # for item in shop.items:
-            # if item.is_new:
-            #     print(item.id, item.category, item.cheese, item.fraise, item.special)
-            # if item.fraise == 65:
-            #     print(item.id, item.category, item.cheese, item.fraise, item.special)
-            # print(item.id, item.category, item.cheese, item.fraise, item.special)
+        #     if item.is_new:
+        #         print(item.id, item.category, item.cheese, item.fraise, item.special)
+        #     if item.fraise == 65:
+        #         print(item.id, item.category, item.cheese, item.fraise, item.special)
+        #     print(item.id, item.category, item.cheese, item.fraise, item.special)
         # print("done")
     elif message.startswith(f"{PREFIX}8ball"):
         if len(split_message) == 1:
             return "Please ask a question."
         return random.choice(EIGHT_BALL)
+    elif message == f"{PREFIX}ping":
+        await tfm_bot.sendCommand("ping")
+        # ping = await tfm_bot.wait_for('on_ping', timeout=10)
+        # print(ping)
+        # return ping
+
 
     # Admin commands
     if author_name.title() in CONTROL:
@@ -272,6 +299,10 @@ async def process_command(message, origin, author, discord=False):
                     return f"Removed {newuser} from control list"
                 except ValueError:
                     return f"User {newuser} not in control list"
+        elif message == f"{PREFIX}tribe":
+            await tfm_bot.enterTribe()
+        elif message.startswith(f"{PREFIX}room"):
+            await tfm_bot.joinRoom(" ".join(split_message[1:]))
 
     # Owner Commands
     if author_name.title() in OWNER:
