@@ -66,8 +66,9 @@ async def on_whisper(message):
     author = message.author.username
     output = await process_command(message.content, "whisper", message.author)
     if output is not None:
-        await message.reply(output)
-        print(f"[Whisper] [{author}] {output}")
+        for item in output:
+            await message.reply(item)
+            print(f"[Whisper] [{author}] {item}")
 
 
 @tfm_bot.event
@@ -79,8 +80,9 @@ async def on_room_message(message):
     await send_discord_message(channel, f"[TFM] [{author}] {message.content}")
     output = await process_command(message.content, "room", message.author)
     if output is not None:
-        await send_room_message(output)
-        await send_discord_message(channel, f"[TFM] [{config['username'].title()}] {output}")
+        for item in output:
+            await send_room_message(item)
+            await send_discord_message(channel, f"[TFM] [{config['username'].title()}] {item}")
 
 
 @tfm_bot.event
@@ -92,8 +94,9 @@ async def on_tribe_message(author, message):
     await send_discord_message(channel, f"[TFM] [{author}] {message}")
     output = await process_command(message, "tribe", author)
     if output is not None:
-        await send_tribe_message(output)
-        await send_discord_message(channel, f"[TFM] [{config['username'].title()}] {output}")
+        for item in output:
+            await send_tribe_message(item)
+            await send_discord_message(channel, f"[TFM] [{config['username'].title()}] {item}")
 
 
 @tfm_bot.event
@@ -146,7 +149,7 @@ async def on_joined_room(room):
 
 # @tfm_bot.event
 # async def on_raw_socket(connection, packet):
-#     exclude = [(4, 3), (4, 4), (8, 16), (28, 6)]
+#     exclude = [(4, 3), (4, 4), (28, 6)]
 #     CCC = packet.readCode()
 #     if CCC in exclude:
 #         return
@@ -164,24 +167,24 @@ async def process_command(message, origin, author, discord=False):
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        return f"I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>"
+        return [f"I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>"]
     elif message == f"{PREFIX}time": # .time
-        return f"{datetime.now()} (UTC)"
+        return [f"{datetime.now()} (UTC)"]
     elif message == f"{PREFIX}mom": # .mom
         with open(f"{directory}/jokes.txt", "r") as file:
             jokes = file.read().split("\n")
-            return random.choice(jokes)
+            return [random.choice(jokes)]
     elif message == f"{PREFIX}joke":
         choice = random.randint(1, 2)
         if choice == 1:
             json = requests.get("https://v2.jokeapi.dev/joke/Miscellaneous,Dark,Pun,Spooky,Christmas?blacklistFlags=racist").json()
             if json['type'] == "twopart":
-                return f"{json['setup']} {json['delivery']}"
+                return [f"{json['setup']} {json['delivery']}"]
             else:
-                return json['joke'] 
+                return [json['joke']]
         elif choice == 2:
             json = requests.get("https://icanhazdadjoke.com", headers={"Accept": "application/json"}).json()
-            return json['joke']
+            return [json['joke']]
 
     elif message.startswith(f"{PREFIX}title"): # .title <player>
         offline = ""
@@ -189,7 +192,7 @@ async def process_command(message, origin, author, discord=False):
             author_name = split_message[1]
         await tfm_bot.sendCommand(f"profile {author_name}")
         try:
-            _, profile_packet = await tfm_bot.wait_for('on_raw_socket', lambda _, p: p.readCode() == (8, 16), timeout=2)
+            _, profile_packet = await tfm_bot.wait_for('on_raw_socket', lambda _, p: p.readCode() == (8, 16), timeout=3)
             profile = parser.Profile(profile_packet)
             cheese = profile.stats.gatheredCheese
             firsts = profile.stats.firsts
@@ -201,7 +204,7 @@ async def process_command(message, origin, author, discord=False):
         except asyncio.exceptions.TimeoutError:
             json = requests.get(f"https://cheese.formice.com/api/players/{author_name.title().replace('#', '-')}").json()
             if "error" in json:
-                return json['message']
+                return [json['message']]
             cheese = json['stats']['mouse']['cheese']
             firsts = json['stats']['mouse']['first']
             bootcamps = json['stats']['mouse']['bootcamp']
@@ -212,31 +215,38 @@ async def process_command(message, origin, author, discord=False):
         except:
             pass
 
-        titles = {"cheese_title": "", "first_title": "", "bootcamp_title": "", "normal_title": "", "hard_title": "", "divine_title": "", "without_title": ""}
+        main_titles = {"cheese_title": "", "first_title": "", "bootcamp_title": ""}
+        shaman_titles = {"normal_title": "", "hard_title": "", "divine_title": "", "without_title": ""}
 
         for item in db_titles:
-            if item['type'] == "cheese_total" and item['number'] > cheese and len(titles['cheese_title']) == 0:
-                titles['cheese_title'] = f"{item['number'] - cheese} cheese for «{'/'.join(item['titles'])}»"
-            elif item['type'] == "cheese_first" and item['number'] > firsts and len(titles['first_title']) == 0:
-                titles['first_title'] = f"{item['number'] - firsts} firsts for «{'/'.join(item['titles'])}»"
-            elif item['type'] == "bootcamp" and item['number'] > bootcamps and len(titles['bootcamp_title']) == 0:
-                titles['bootcamp_title'] = f"{item['number'] - bootcamps} bootcamps for «{'/'.join(item['titles'])}»"
-            elif item['type'] == "normal_saves" and item['number'] > normalModeSaves and len(titles['normal_title']) == 0:
-                titles['normal_title'] = f"{item['number'] - normalModeSaves} saves for «{'/'.join(item['titles'])}»"
-            elif item['type'] == "hard_saves" and item['number'] > hardModeSaves and len(titles['hard_title']) == 0:
-                titles['hard_title'] = f"{item['number'] - hardModeSaves} hard mode saves for «{'/'.join(item['titles'])}»"
-            elif item['type'] == "divine_saves" and item['number'] > divineModeSaves and len(titles['divine_title']) == 0:
-                titles['divine_title'] = f"{item['number'] - divineModeSaves} divine mode saves for «{'/'.join(item['titles'])}»"
+            if item['type'] == "cheese_total" and item['number'] > cheese and len(main_titles['cheese_title']) == 0:
+                main_titles['cheese_title'] = f"{item['number'] - cheese} cheese for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "cheese_first" and item['number'] > firsts and len(main_titles['first_title']) == 0:
+                main_titles['first_title'] = f"{item['number'] - firsts} firsts for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "bootcamp" and item['number'] > bootcamps and len(main_titles['bootcamp_title']) == 0:
+                main_titles['bootcamp_title'] = f"{item['number'] - bootcamps} bootcamps for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "normal_saves" and item['number'] > normalModeSaves and len(shaman_titles['normal_title']) == 0:
+                shaman_titles['normal_title'] = f"{item['number'] - normalModeSaves} saves for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "hard_saves" and item['number'] > hardModeSaves and len(shaman_titles['hard_title']) == 0:
+                shaman_titles['hard_title'] = f"{item['number'] - hardModeSaves} hard saves for «{'/'.join(item['titles'])}»"
+            elif item['type'] == "divine_saves" and item['number'] > divineModeSaves and len(shaman_titles['divine_title']) == 0:
+                shaman_titles['divine_title'] = f"{item['number'] - divineModeSaves} divine saves for «{'/'.join(item['titles'])}»"
             if offline == "":
-                if item['type'] == "without_skill_saves" and item['number'] > withoutSkillSaves and len(titles['without_title']) == 0:
-                    titles['without_title'] = f"{item['number'] - withoutSkillSaves} without skill saves for «{'/'.join(item['titles'])}»"
+                if item['type'] == "without_skill_saves" and item['number'] > withoutSkillSaves and len(shaman_titles['without_title']) == 0:
+                    shaman_titles['without_title'] = f"{item['number'] - withoutSkillSaves} w/o skills for «{'/'.join(item['titles'])}»"
         
         # Remove Blanks
-        titles = {k: v for k, v in titles.items() if v}
-        if len(titles) == 0:
-            return f"{offline}{author_name.title()}: has unlocked every title!"
+        main_titles = {k: v for k, v in main_titles.items() if v}
+        shaman_titles = {k: v for k, v in shaman_titles.items() if v}
 
-        return f"{offline}{author_name.title()}, {', '.join(list(titles.values()))}"
+        title_items = []
+
+        if len(main_titles) > 0:
+            title_items.append(f"{offline}{author_name.title()}, {', '.join(list(main_titles.values()))}")
+        if len(shaman_titles) > 0:
+            title_items.append(f"{offline}{author_name.title()}, {', '.join(list(shaman_titles.values()))}")
+
+        return title_items
     elif message == f"{PREFIX}online": # .online
         tribe = await tfm_bot.getTribe()
         members = tribe.members
@@ -245,12 +255,50 @@ async def process_command(message, origin, author, discord=False):
             if member.online and member.name.title() != config['username']:
                 online.append(member.name.title())
         if len(online) > 0:
-            return f"Online Players: {', '.join(online)}"
+            return [f"Online Players: {', '.join(online)}"]
         else:
-            return "No one is online."
-    elif message == f"{PREFIX}shop": # .shop
-        await tfm_bot.requestShopList()
+            return ["No one is online."]
+    elif message == f"{PREFIX}sales": # .sales
+        pass
+        # datas = [
+        #     b'\x01\x01\x00\x03\x82\xd4\x01bb\x1a\x002', 
+        #     b"\x01\x01\x00\x00'\xd4\x01bb\x1a\x00#",
+        #     b'\x01\x01\x00\x00\x02\xeb\x01bb\x1a\x00(',
+        #     b'\x01\x00\x00\x00\x00t\x01bb\x1a\x00\x1e',
+        #     b'\x01\x00\x00\x00\x00\xdb\x01bb\x1a\x00#'
+        # ]
+        # await tfm_bot.requestShopList()
         # shop = await tfm_bot.wait_for('on_shop', timeout=10)
+
+        # for data in datas:
+        #     print('-----------------')
+        #     packet = aiotfm.Packet.new(20, 3).writeBytes(data)
+
+        #     packet.readCode()
+
+        #     print(packet.readBool())
+        #     print(packet.readBool())
+        #     id = packet.read32()
+        #     print(id)
+        #     print(packet.readBool())
+        #     print(packet.read32() * 1000)
+        #     discount = packet.read8()
+        #     print(discount)
+
+        #     for item in shop.items:
+        #         # print(item.uid)
+        #         if int(item.uid) == int(id):
+        #             print('FOUND1')
+        #             print(item.cheese, item.fraise, item.fraise * (1 - (discount / 100)))
+
+        #     for item in shop.shaman_objects:
+        #         # print(item.uid)
+        #         if int(item.id) == int(id):
+        #             print('FOUND2')
+        #             print(item.cheese, item.fraise, item.fraise * (1 - (discount / 100)))
+
+        #     print('-----------------')
+
         # print(shop)
         # _, shop_packet = await tfm_bot.wait_for('on_raw_socket', lambda _, p: p.readCode() == (20, 3), timeout=30)
         # print(shop_packet)
@@ -263,8 +311,8 @@ async def process_command(message, origin, author, discord=False):
         # print("done")
     elif message.startswith(f"{PREFIX}8ball"):
         if len(split_message) == 1:
-            return "Please ask a question."
-        return random.choice(EIGHT_BALL)
+            return ["Please ask a question."]
+        return [random.choice(EIGHT_BALL)]
     elif message == f"{PREFIX}ping":
         await tfm_bot.sendCommand("ping")
         # ping = await tfm_bot.wait_for('on_ping', timeout=10)
@@ -278,27 +326,27 @@ async def process_command(message, origin, author, discord=False):
             # .greetings add/clear/list <name> <greeting>
             if split_message[1] == "add":
                 mousebot_greetings.insert_one({"name": split_message[2].title(), "greeting": " ".join(split_message[3:])})
-                return f"Added greeting to {split_message[2].title()}"
+                return [f"Added greeting to {split_message[2].title()}"]
             elif split_message[1] == "clear":
                 mousebot_greetings.delete_many({"name": split_message[2].title()})
-                return f"Cleared greetings of {split_message[2].title()}"
+                return [f"Cleared greetings of {split_message[2].title()}"]
             elif split_message[1] == "list":
                 greetings_list = [g['greeting'] for g in mousebot_greetings.find({"name": split_message[2].title()}, { "_id": 0, "name": 0})]
-                return f"Greetings for {split_message[2].title()}: {greetings_list}"
+                return [f"Greetings for {split_message[2].title()}: {greetings_list}"]
         elif message.startswith(f"{PREFIX}control"):
             # .control add/del <username>
             newuser = split_message[2]
             if newuser in config['CONTROL']:
-                return "Cannot modify admin user"
+                return ["Cannot modify admin user"]
             elif split_message[1] == "add":
                 CONTROL.append(newuser)
-                return f"Added {newuser} to control list"
+                return [f"Added {newuser} to control list"]
             elif split_message[1] == "del":
                 try:
                     CONTROL.remove(newuser)
-                    return f"Removed {newuser} from control list"
+                    return [f"Removed {newuser} from control list"]
                 except ValueError:
-                    return f"User {newuser} not in control list"
+                    return [f"User {newuser} not in control list"]
         elif message == f"{PREFIX}tribe":
             await tfm_bot.enterTribe()
         elif message.startswith(f"{PREFIX}room"):
@@ -307,14 +355,14 @@ async def process_command(message, origin, author, discord=False):
     # Owner Commands
     if author_name.title() in OWNER:
         if message.startswith(f"{PREFIX}exec"): # .exec <command>
-            return subprocess.check_output(split_message[1:]).decode("utf-8").strip()
+            return [subprocess.check_output(split_message[1:]).decode("utf-8").strip()]
         elif message == f"{PREFIX}restart":
             subprocess.run(["sudo", "systemctl", "reset-failed", "mousebot.service"])
             subprocess.run(["sudo", "systemctl", "restart", "mousebot.service"])
         elif message == f"{PREFIX}status":
             status = subprocess.Popen(["systemctl", "status", "mousebot.service"], stdout=subprocess.PIPE)
             output = subprocess.check_output(["grep", "active"], stdin=status.stdout).decode("utf-8").rsplit(" ", 3)[0].strip()
-            return output
+            return [output]
 
     # Room specific commands
     if origin == "room":
@@ -353,15 +401,17 @@ async def on_message(message):
         if message.content.startswith(PREFIX):
             output = await process_command(message.content, "tribe", f"{message.author.id}", True)
             if output is not None:
-                await send_tribe_message(output)
-                await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {output}")
+                for item in output:
+                    await send_tribe_message(item)
+                    await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {item}")
     elif message.channel.id == int(TRIBE_ROOM_CHAT):
         await send_room_message(f"[Discord] [{message.author.display_name}] {message.content}")
         if message.content.startswith(PREFIX):
             output = await process_command(message.content, "room", f"{message.author.id}", True)
             if output is not None:
-                await send_room_message(output)
-                await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {output}")
+                for item in output:
+                    await send_room_message(item)
+                    await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {item}")
 
 #######################################################################################################################
 ##################################################### DISCORD BOT #####################################################
