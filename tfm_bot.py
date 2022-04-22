@@ -74,7 +74,13 @@ async def on_whisper(message):
 @tfm_bot.event
 async def on_room_message(message):
     author = message.author.username
+    # Check if message send by bot
     if author == config['username']:
+        return
+    # Check if message send by tribe member
+    tribe = await tfm_bot.getTribe()
+    member_names = [member.name.title() for member in tribe.members]
+    if author not in member_names:
         return
     channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
     await send_discord_message(channel, f"[TFM] [{author}] {message.content}")
@@ -88,6 +94,7 @@ async def on_room_message(message):
 @tfm_bot.event
 async def on_tribe_message(author, message):
     author = author.title()
+    # Check if message send by bot
     if author == config['username']:
         return
     channel = discord_bot.get_channel(int(TRIBE_CHAT))
