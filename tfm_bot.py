@@ -77,7 +77,10 @@ async def on_room_message(message):
     if author == config['username']:
         return
     # Check if message send by tribe member
-    tribe = await tfm_bot.getTribe()
+    try:
+        tribe = await tfm_bot.getTribe()
+    except:
+        return
     member_names = [member.name.title() for member in tribe.members]
     if author not in member_names:
         return
@@ -126,11 +129,11 @@ async def on_member_disconnected(name):
     await send_discord_message(channel, f"[TFM] {name.title()} has disconnected.")
 
 
-@tfm_bot.event
-async def on_server_message(message):
-    channel = discord_bot.get_channel(int(LOG_CHAT))
-    print(f"[SERVER] {message}")
-    await send_discord_message(channel, f"[SERVER] {message}")
+# @tfm_bot.event
+# async def on_server_message(message):
+#     channel = discord_bot.get_channel(int(LOG_CHAT))
+#     print(f"[SERVER] {message}")
+#     await send_discord_message(channel, f"[SERVER] {message}")
 
 
 @tfm_bot.event
@@ -155,8 +158,8 @@ async def on_joined_room(room):
 
 # @tfm_bot.event
 # async def on_raw_socket(connection, packet):
-#     exclude = [(4, 3), (4, 4), (60, 3), (28, 6)]
 #     CCC = packet.readCode()
+#     exclude = [(4, 3), (4, 4), (60, 3), (28, 6)]
 #     if CCC not in exclude:
 #         print(packet, CCC)
 
@@ -196,13 +199,18 @@ async def process_command(message, origin, author, discord=False):
     # General commands
     if message == f"{PREFIX}help": # .help
         return [f"I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>"]
+
     elif message == f"{PREFIX}time": # .time
-        return [f"{datetime.now()} (UTC)"]
+        await tfm_bot.sendCommand("time")
+        time = await tfm_bot.wait_for('on_time', timeout=3)
+        return [time]
+
     elif message == f"{PREFIX}mom": # .mom
         with open(f"{directory}/jokes.txt", "r") as file:
             jokes = file.read().split("\n")
             return [random.choice(jokes)]
-    elif message == f"{PREFIX}joke":
+
+    elif message == f"{PREFIX}joke": # .joke
         choice = random.randint(1, 2)
         if choice == 1:
             json = requests.get("https://v2.jokeapi.dev/joke/Miscellaneous,Dark,Pun,Spooky,Christmas?blacklistFlags=racist").json()
