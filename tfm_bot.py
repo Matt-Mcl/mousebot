@@ -164,7 +164,10 @@ async def on_joined_room(room):
 @tfm_bot.event
 async def on_player_won(player, order, player_time):
     username = player.username.title()
-    tribe = await tfm_bot.getTribe()
+    try:
+        tribe = await tfm_bot.getTribe()
+    except:
+        return
     member_names = [member.name.title() for member in tribe.members]
     if username not in member_names:
         return
