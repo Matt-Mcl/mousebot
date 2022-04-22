@@ -7,7 +7,6 @@ import aiotfm
 import random
 import pymongo
 import requests
-from helpers import parser
 from datetime import datetime
 from discord.ext import commands
 
@@ -156,12 +155,31 @@ async def on_joined_room(room):
 
 # @tfm_bot.event
 # async def on_raw_socket(connection, packet):
-#     exclude = [(4, 3), (4, 4), (28, 6)]
+#     exclude = [(4, 3), (4, 4), (60, 3), (28, 6)]
 #     CCC = packet.readCode()
-#     if CCC in exclude:
-#         return
-#     print(packet, CCC)
+#     if CCC not in exclude:
+#         print(packet, CCC)
 
+
+@tfm_bot.event
+async def on_player_won(player, order, player_time):
+    username = player.username.title()
+    tribe = await tfm_bot.getTribe()
+    member_names = [member.name.title() for member in tribe.members]
+    if username not in member_names:
+        return
+    if order == 1:
+        await tfm_bot.sendCommand(f"profile {username}")
+        profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == username, timeout=3)
+        firsts = profile.stats.firsts
+        title = ""
+        for item in db_titles:
+            if item['type'] == "cheese_first" and item['number'] > firsts:
+                title = f" You need {item['number'] - firsts} more firsts for «{'/'.join(item['titles'])}»"
+                break
+
+        print(f"[Whisper] {username}, You came first in {player_time} seconds.{title}")
+        await tfm_bot.whisper(username, f"You came in first in {player_time} seconds.{title}")
 
 
 async def process_command(message, origin, author, discord=False):
@@ -199,8 +217,7 @@ async def process_command(message, origin, author, discord=False):
             author_name = split_message[1]
         await tfm_bot.sendCommand(f"profile {author_name}")
         try:
-            _, profile_packet = await tfm_bot.wait_for('on_raw_socket', lambda _, p: p.readCode() == (8, 16), timeout=3)
-            profile = parser.Profile(profile_packet)
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.title(), timeout=3)
             cheese = profile.stats.gatheredCheese
             firsts = profile.stats.firsts
             bootcamps = profile.stats.bootcamps
@@ -266,7 +283,7 @@ async def process_command(message, origin, author, discord=False):
         else:
             return ["No one is online."]
     elif message == f"{PREFIX}sales": # .sales
-        pass
+        await tfm_bot.requestShopList()
         # datas = [
         #     b'\x01\x01\x00\x03\x82\xd4\x01bb\x1a\x002', 
         #     b"\x01\x01\x00\x00'\xd4\x01bb\x1a\x00#",
@@ -325,6 +342,12 @@ async def process_command(message, origin, author, discord=False):
         # ping = await tfm_bot.wait_for('on_ping', timeout=10)
         # print(ping)
         # return ping
+    
+    elif message in [f"{PREFIX}funcorp", f"{PREFIX}fc"]: # .funcorp            
+        with open(f"{directory}/Funcorp_Lua.lua", 'r') as f:
+            code = f.read()
+            code = f"admin = {{\"{author_name.title()}\"}}\n" + code
+            await tfm_bot.loadLua(code)
 
 
     # Admin commands
@@ -340,6 +363,7 @@ async def process_command(message, origin, author, discord=False):
             elif split_message[1] == "list":
                 greetings_list = [g['greeting'] for g in mousebot_greetings.find({"name": split_message[2].title()}, { "_id": 0, "name": 0})]
                 return [f"Greetings for {split_message[2].title()}: {greetings_list}"]
+
         elif message.startswith(f"{PREFIX}control"):
             # .control add/del <username>
             newuser = split_message[2]
@@ -354,19 +378,34 @@ async def process_command(message, origin, author, discord=False):
                     return [f"Removed {newuser} from control list"]
                 except ValueError:
                     return [f"User {newuser} not in control list"]
-        elif message == f"{PREFIX}tribe":
+
+        elif message == f"{PREFIX}tribe": # .tribe
             await tfm_bot.enterTribe()
-        elif message.startswith(f"{PREFIX}room"):
+
+        elif message.startswith(f"{PREFIX}room"): # .room <room> [password]
             await tfm_bot.joinRoom(" ".join(split_message[1:]))
+
+        elif message.startswith(f"{PREFIX}lua"): # .lua <pastebin>
+            if len(split_message) == 1:
+                return ["Please add pastebin URL"]
+            url = "https://pastebin.com/raw/" + split_message[1].split('/')[3]
+            code = requests.get(url)
+            if code.status_code != 200:
+                return ["Invalid pastebin URL"]
+
+            await tfm_bot.loadLua(code.text)
+
 
     # Owner Commands
     if author_name.title() in OWNER:
         if message.startswith(f"{PREFIX}exec"): # .exec <command>
             return [subprocess.check_output(split_message[1:]).decode("utf-8").strip()]
-        elif message == f"{PREFIX}restart":
+
+        elif message == f"{PREFIX}restart": # .restart
             subprocess.run(["sudo", "systemctl", "reset-failed", "mousebot.service"])
             subprocess.run(["sudo", "systemctl", "restart", "mousebot.service"])
-        elif message == f"{PREFIX}status":
+
+        elif message == f"{PREFIX}status": # .status
             status = subprocess.Popen(["systemctl", "status", "mousebot.service"], stdout=subprocess.PIPE)
             output = subprocess.check_output(["grep", "active"], stdin=status.stdout).decode("utf-8").rsplit(" ", 3)[0].strip()
             return [output]
@@ -412,13 +451,18 @@ async def on_message(message):
                     await send_tribe_message(item)
                     await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {item}")
     elif message.channel.id == int(TRIBE_ROOM_CHAT):
-        await send_room_message(f"[Discord] [{message.author.display_name}] {message.content}")
+        is_tribe = tfm_bot.room.is_tribe
+        if is_tribe:
+            await send_room_message(f"[Discord] [{message.author.display_name}] {message.content}")
         if message.content.startswith(PREFIX):
             output = await process_command(message.content, "room", f"{message.author.id}", True)
             if output is not None:
                 for item in output:
-                    await send_room_message(item)
+                    if is_tribe:
+                        await send_room_message(item)
                     await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {item}")
+        elif not is_tribe:
+            return await send_discord_message(message.channel, "Not in tribe house. Please use tribe-chat instead for non commands.")
 
 #######################################################################################################################
 ##################################################### DISCORD BOT #####################################################
