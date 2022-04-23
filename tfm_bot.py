@@ -1,3 +1,4 @@
+import re
 import subprocess
 import sys
 import time
@@ -203,17 +204,28 @@ async def process_command(message, origin, author, discord=False):
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        return [f"I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>"]
+        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie"]
+        if author_name.title() in CONTROL:
+            commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>")
+        return commands
+        
 
     elif message == f"{PREFIX}time": # .time
         await tfm_bot.sendCommand("time")
         time = await tfm_bot.wait_for('on_time', timeout=3)
         return [time]
 
-    elif message == f"{PREFIX}mom": # .mom
+    elif message.startswith(f"{PREFIX}mom"): # .mom
         with open(f"{directory}/jokes.txt", "r") as file:
             jokes = file.read().split("\n")
-            return [random.choice(jokes)]
+            joke = random.choice(jokes)
+            
+            if len(split_message) > 1:
+                regex = re.compile(re.escape("your"), re.IGNORECASE)
+                joke = regex.sub(f"{split_message[1]}'s", joke)
+
+            return [joke]
+        
 
     elif message == f"{PREFIX}joke": # .joke
         choice = random.randint(1, 2)
