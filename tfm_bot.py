@@ -165,6 +165,11 @@ async def on_joined_room(room):
 
 
 @tfm_bot.event
+async def on_connection_error(connection, exception):
+    sys.exit(1)
+
+
+@tfm_bot.event
 async def on_player_won(player, order, player_time):
     username = player.username.title()
     try:

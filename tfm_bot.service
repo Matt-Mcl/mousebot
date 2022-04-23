@@ -7,8 +7,8 @@ Type=simple
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/home/ubuntu/mousebot/venv/bin/python -u /home/ubuntu/mousebot/tfm_bot.py /home/ubuntu/mousebot 
 Restart=on-failure
-RestartSec=30
-StartLimitBurst=5
+RestartSec=60
+StartLimitBurst=10
 TimeoutStartSec=infinity
 
 StandardOutput=append:/var/log/mousebot/output.log
