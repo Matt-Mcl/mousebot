@@ -60,12 +60,13 @@ def main():
                     try:
                         if len(row) > 0:
                             code = row[1].strip()
-                            name = results['values'][i + 1][2].strip()
-                            time = results['values'][i + 1][3].strip()
-                            if len(name) > 0:
-                                mousebot_map_records.insert_one({"category": title, "code": code, "name": name, "time": time})
+                            for j in range(1, 6):
+                                name = results['values'][i + j][2].strip()
+                                time = results['values'][i + j][3].strip()
+                                if len(name) > 0:
+                                    mousebot_map_records.insert_one({"category": title, "code": code, "name": name, "time": time})
                     except IndexError:
-                        mousebot_map_records.insert_one({"category": title, "code": row[1].strip(), "name": None, "time": None})
+                        pass
 
     except HttpError as err:
         print(err)

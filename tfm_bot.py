@@ -410,10 +410,18 @@ async def process_command(message, origin, author, discord=False):
         map_code = split_message[1]
         if map_code[0] != "@":
             map_code = f"@{map_code}"
-        record = mousebot_map_records.find_one({"code": map_code}, { "_id": 0})
-        if record is None:
+        db_record = list(mousebot_map_records.find({"code": map_code}, { "_id": 0}))
+        if len(db_record) == 0:
             return ["No records found"]
-        return [f"Record holder: {record['name']} - {record['time']}. ({record['code']} - {record['category']})"]
+
+        if len(split_message) == 3 and split_message[2] == "all":
+            records = []
+            for i, v in enumerate(db_record):
+                records.append(f"[{i+1}: {v['name']} - {v['time']}]")
+                
+            return [f"Records: {', '.join(records)}. ({db_record[0]['code']} - {db_record[0]['category']})"]
+
+        return [f"{db_record[0]['name']} - {db_record[0]['time']}. ({db_record[0]['code']} - {db_record[0]['category']})"]
 
 
     # Admin commands
