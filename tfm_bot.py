@@ -41,7 +41,6 @@ mousebot_map_categories = mousebot_db['map_categories']
 mousebot_map_records = mousebot_db['map_records']
 db_titles = list(mousebot_titles.find())
 
-
 #######################################################################################################################
 ################################################## TRANSFORMICE BOT ###################################################
 #######################################################################################################################
@@ -404,6 +403,17 @@ async def process_command(message, origin, author, discord=False):
             page = int(split_message[1])
         offset = (page - 1) * 5
         return [", ".join(RECENT_MAPS[0 + offset:5 + offset])]
+    
+    elif message.startswith(f"{PREFIX}record"): #.record <map>
+        if len(split_message) == 1:
+            return ["Please specify map code"]
+        map_code = split_message[1]
+        if map_code[0] != "@":
+            map_code = f"@{map_code}"
+        record = mousebot_map_records.find_one({"code": map_code}, { "_id": 0})
+        if record is None:
+            return ["No records found"]
+        return [f"Record holder: {record['name']} - {record['time']}. ({record['code']} - {record['category']})"]
 
 
     # Admin commands
