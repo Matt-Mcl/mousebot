@@ -4,9 +4,13 @@ import pymongo
 mongo_client = pymongo.MongoClient()
 mousebot_db = mongo_client['mousebot']
 mousebot_titles = mousebot_db['titles']
+mousebot_map_categories = mousebot_db['map_categories']
 
-# Empty Titles database
+# Empty databases
 mousebot_titles.delete_many({})
+mousebot_map_categories.delete_many({})
+
+# Scrape Titles
 
 url = "https://transformice.fandom.com/wiki/Title"
 html = get(url)
@@ -52,3 +56,20 @@ without_skill_saves = list(mousebot_titles.find({"type": "without_skill_saves"},
 # print(hard_saves)
 # print(divine_saves)
 # print(without_skill_saves)
+
+
+# Scrape Map Categories
+
+url = "https://transformice.fandom.com/wiki/Map#Map_categories"
+html = get(url)
+soup = Soup(html)
+
+table = soup.find("table", {"class": "wikitable centertext"})
+
+for item in table.find("tr")[1:]:
+    id = item.find("td")[0].text
+    name = item.find("td")[2].text
+    description = str(item.find("td")[3])
+
+    if len(name) > 0:
+        mousebot_map_categories.insert_one({"id": id, "name": name, "description": description})

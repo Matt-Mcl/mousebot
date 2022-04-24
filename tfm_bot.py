@@ -28,12 +28,17 @@ CONTROL = config['CONTROL'][:]
 
 GREETINGS = ["Howdy, partner!", "Hey, howdy, hi!", "Put that Coffee Cup down!", "Ahoy, matey!", "Hiya! Welcome back!", "This Message may be recorded for training purposes- I.. I mean Welcome back!", "Yo!", "What's up?", "Sup?", "Take a deep breath in.. Namaste! SHIT I DIDN'T NOTICE YOU THERE!! I mean.. Welcome back, creep!", "New phone, who dis?"]
 EIGHT_BALL = ["It is certain.", "It is decidedly so.", "Without a doubt.", "Yes definitely.", "You may rely on it.", "As I see it, yes.", "Most likely.", "Outlook good.", "Yes.", "Signs point to yes.", "Reply hazy, try again.", "Ask again later.", "Better not tell you now.", "Cannot predict now.", "Concentrate and ask again.", "Don't count on it.", "My reply is no.", "My sources say no.", "Outlook not so good.", "Very doubtful."]
+RECENT_MAPS = []
 
 # Init Mongo DB
 mongo_client = pymongo.MongoClient()
 mousebot_db = mongo_client['mousebot']
 mousebot_greetings = mousebot_db['greetings']
 mousebot_titles = mousebot_db['titles']
+mousebot_maps = mousebot_db['maps']
+mousebot_maps.create_index("code", unique=True)
+mousebot_map_categories = mousebot_db['map_categories']
+mousebot_map_records = mousebot_db['map_records']
 db_titles = list(mousebot_titles.find())
 
 
@@ -171,6 +176,22 @@ async def on_connection_error(connection, exception):
 
 
 @tfm_bot.event
+async def on_map_load(map_data):
+    category_name = mousebot_map_categories.find_one({"id": str(map_data['category'])})
+    if len(map_data['author']) == 0 or str(map_data['category']) == "87":
+        RECENT_MAPS.insert(0, f"(@{map_data['code']} - Vanilla)")
+        return
+    else:
+        try:
+            mousebot_maps.insert_one(map_data)
+            RECENT_MAPS.insert(0, f"({map_data['author']} - @{map_data['code']} - {category_name['name']})")
+        except pymongo.errors.DuplicateKeyError:
+            pass
+    if len(RECENT_MAPS) > 50:
+        del RECENT_MAPS[-1]
+
+
+@tfm_bot.event
 async def on_player_won(player, order, player_time):
     username = player.username.title()
     try:
@@ -204,7 +225,7 @@ async def process_command(message, origin, author, discord=False):
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie"]
+        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page]"]
         if author_name.title() in CONTROL:
             commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>")
         return commands
@@ -222,7 +243,7 @@ async def process_command(message, origin, author, discord=False):
             
             if len(split_message) > 1:
                 regex = re.compile(re.escape("your"), re.IGNORECASE)
-                joke = regex.sub(f"{split_message[1]}'s", joke)
+                joke = regex.sub(f"{' '.join(split_message[1:])}'s", joke)
 
             return [joke]
         
@@ -376,6 +397,13 @@ async def process_command(message, origin, author, discord=False):
             code = f.read()
             code = f"admin = {{\"{author_name.title()}\"}}\n" + code
             await tfm_bot.loadLua(code)
+
+    elif message.startswith(f"{PREFIX}maps"): # .maps [page]
+        page = 1
+        if len(split_message) > 1:
+            page = int(split_message[1])
+        offset = (page - 1) * 5
+        return [", ".join(RECENT_MAPS[0 + offset:5 + offset])]
 
 
     # Admin commands
