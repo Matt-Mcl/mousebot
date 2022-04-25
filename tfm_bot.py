@@ -29,6 +29,7 @@ CONTROL = config['CONTROL'][:]
 GREETINGS = ["Howdy, partner!", "Hey, howdy, hi!", "Put that Coffee Cup down!", "Ahoy, matey!", "Hiya! Welcome back!", "This Message may be recorded for training purposes- I.. I mean Welcome back!", "Yo!", "What's up?", "Sup?", "Take a deep breath in.. Namaste! SHIT I DIDN'T NOTICE YOU THERE!! I mean.. Welcome back, creep!", "New phone, who dis?"]
 EIGHT_BALL = ["It is certain.", "It is decidedly so.", "Without a doubt.", "Yes definitely.", "You may rely on it.", "As I see it, yes.", "Most likely.", "Outlook good.", "Yes.", "Signs point to yes.", "Reply hazy, try again.", "Ask again later.", "Better not tell you now.", "Cannot predict now.", "Concentrate and ask again.", "Don't count on it.", "My reply is no.", "My sources say no.", "Outlook not so good.", "Very doubtful."]
 RECENT_MAPS = []
+TRIBE = []
 
 # Init Mongo DB
 mongo_client = pymongo.MongoClient()
@@ -61,6 +62,7 @@ async def on_login_ready(*a):
 @tfm_bot.event
 async def on_ready():
     print(f'Connected to the community platform in {tfm_bot.loop.time() - boot_time:.2f} seconds')
+    TRIBE.append(await tfm_bot.getTribe())
     time.sleep(1)
     await tfm_bot.enterTribe()
     
@@ -81,12 +83,7 @@ async def on_room_message(message):
     # Check if message send by bot
     if author == config['username']:
         return
-    # Check if message send by tribe member
-    try:
-        tribe = await tfm_bot.getTribe()
-    except:
-        return
-    member_names = [member.name.title() for member in tribe.members]
+    member_names = [member.name.title() for member in TRIBE[0].members]
     if author not in member_names:
         return
     channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
@@ -165,13 +162,30 @@ async def on_joined_room(room):
 # async def on_raw_socket(connection, packet):
 #     CCC = packet.readCode()
 #     exclude = [(4, 3), (4, 4), (60, 3), (28, 6)]
-#     if CCC not in exclude:
-#         print(packet, CCC)
+#     # if CCC not in exclude:
+#     #     print(packet, CCC)
+#     if CCC == (60, 3):
+#         print(packet, CCC, packet.read16())
 
 
 @tfm_bot.event
 async def on_connection_error(connection, exception):
     sys.exit(1)
+
+
+@tfm_bot.event
+async def on_new_member(name):
+    await tribe_status_message(f"{name.title()} has joined the tribe! Welcome!!")
+
+
+@tfm_bot.event
+async def on_left_member(name):
+    await tribe_status_message(f"{name.title()} has left the tribe. Sad.")
+
+
+@tfm_bot.event
+async def on_kicked_member(name):
+    await tribe_status_message(f"{name.title()} has been kicked from the tribe! Later bitch!!")
 
 
 @tfm_bot.event
@@ -182,8 +196,8 @@ async def on_map_load(map_data):
         return
     else:
         try:
-            mousebot_maps.insert_one(map_data)
             RECENT_MAPS.insert(0, f"({map_data['author']} - @{map_data['code']} - {category_name['name']})")
+            mousebot_maps.insert_one(map_data)
         except pymongo.errors.DuplicateKeyError:
             pass
     if len(RECENT_MAPS) > 50:
@@ -193,11 +207,7 @@ async def on_map_load(map_data):
 @tfm_bot.event
 async def on_player_won(player, order, player_time):
     username = player.username.title()
-    try:
-        tribe = await tfm_bot.getTribe()
-    except:
-        return
-    member_names = [member.name.title() for member in tribe.members]
+    member_names = [member.name.title() for member in TRIBE[0].members]
     if username not in member_names:
         return
     if order == 1:
@@ -226,7 +236,7 @@ async def process_command(message, origin, author, discord=False):
     if message == f"{PREFIX}help": # .help
         commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page]"]
         if author_name.title() in CONTROL:
-            commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>")
+            commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>, .restart, .status")
         return commands
         
 
@@ -468,13 +478,7 @@ async def process_command(message, origin, author, discord=False):
                 return ["Invalid pastebin URL"]
 
             await tfm_bot.loadLua(code.text)
-
-
-    # Owner Commands
-    if author_name.title() in OWNER:
-        if message.startswith(f"{PREFIX}exec"): # .exec <command>
-            return [subprocess.check_output(split_message[1:]).decode("utf-8").strip()]
-
+        
         elif message == f"{PREFIX}restart": # .restart
             subprocess.run(["sudo", "systemctl", "reset-failed", "mousebot.service"])
             subprocess.run(["sudo", "systemctl", "restart", "mousebot.service"])
@@ -483,6 +487,12 @@ async def process_command(message, origin, author, discord=False):
             status = subprocess.Popen(["systemctl", "status", "mousebot.service"], stdout=subprocess.PIPE)
             output = subprocess.check_output(["grep", "active"], stdin=status.stdout).decode("utf-8").rsplit(" ", 3)[0].strip()
             return [output]
+
+
+    # Owner Commands
+    if author_name.title() in OWNER:
+        if message.startswith(f"{PREFIX}exec"): # .exec <command>
+            return [subprocess.check_output(split_message[1:]).decode("utf-8").strip()]
 
     # Room specific commands
     if origin == "room":
@@ -557,6 +567,14 @@ async def send_room_message(message):
 async def send_discord_message(channel, message):
     await channel.send(message)
     print(f"[{channel}] {message}")
+
+async def tribe_status_message(message):
+    await send_tribe_message(message)
+    print(f"[Tribe Status] {message}")
+    channel = discord_bot.get_channel(int(LOG_CHAT))
+    await send_discord_message(channel, f"[Tribe Status] {message}")
+    TRIBE[0] = await tfm_bot.getTribe()
+    
 
 
 # Main bot loops
