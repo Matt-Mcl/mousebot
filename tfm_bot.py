@@ -40,7 +40,7 @@ mousebot_maps = mousebot_db['maps']
 mousebot_maps.create_index("code", unique=True)
 mousebot_map_categories = mousebot_db['map_categories']
 mousebot_map_records = mousebot_db['map_records']
-mousebot_firsts = mousebot_db['firsts']
+mousebot_stats = mousebot_db['player_stats']
 db_titles = list(mousebot_titles.find())
 
 #######################################################################################################################
@@ -211,6 +211,16 @@ async def on_player_won(player, order, player_time):
     member_names = [member.name.title() for member in TRIBE[0].members]
     if username not in member_names:
         return
+
+    today = datetime.now().strftime("%Y/%m/%d")
+
+    cheese_row = mousebot_stats.find_one({"name": username, "type": "cheese", "time": today})
+
+    if cheese_row is None:
+        mousebot_stats.insert_one({"name": username, "type": "cheese", "time": today, "count": 1})
+    else:
+        mousebot_stats.update_one({"name": username, "type": "cheese", "time": today}, { "$inc": {"count": 1} })
+
     if order == 1:
         await tfm_bot.sendCommand(f"profile {username}")
         profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == username, timeout=3)
@@ -221,14 +231,12 @@ async def on_player_won(player, order, player_time):
                 title = f" You need {item['number'] - firsts} more firsts for «{'/'.join(item['titles'])}»"
                 break
 
-        today = datetime.now().strftime("%Y/%m/%d")
-
-        first_row = mousebot_firsts.find_one({"name": username, "time": today})
+        first_row = mousebot_stats.find_one({"name": username, "type": "first", "time": today})
 
         if first_row is None:
-            mousebot_firsts.insert_one({"name": username, "time": today, "count": 1})
+            mousebot_stats.insert_one({"name": username, "type": "first", "time": today, "count": 1})
         else:
-            mousebot_firsts.update_one({"name": username, "time": today}, { "$inc": {"count": 1} })
+            mousebot_stats.update_one({"name": username, "type": "first", "time": today}, { "$inc": {"count": 1} })
 
         print(f"[Whisper] {username}, You came first in {player_time} seconds.{title}")
         await tfm_bot.whisper(username, f"You came in first in {player_time} seconds.{title}")
