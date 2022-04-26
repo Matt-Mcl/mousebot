@@ -40,6 +40,7 @@ mousebot_maps = mousebot_db['maps']
 mousebot_maps.create_index("code", unique=True)
 mousebot_map_categories = mousebot_db['map_categories']
 mousebot_map_records = mousebot_db['map_records']
+mousebot_firsts = mousebot_db['firsts']
 db_titles = list(mousebot_titles.find())
 
 #######################################################################################################################
@@ -219,6 +220,15 @@ async def on_player_won(player, order, player_time):
             if item['type'] == "cheese_first" and item['number'] > firsts:
                 title = f" You need {item['number'] - firsts} more firsts for «{'/'.join(item['titles'])}»"
                 break
+
+        today = datetime.now().strftime("%Y/%m/%d")
+
+        first_row = mousebot_firsts.find_one({"name": username, "time": today})
+
+        if first_row is None:
+            mousebot_firsts.insert_one({"name": username, "time": today, "count": 1})
+        else:
+            mousebot_firsts.update_one({"name": username, "time": today}, { "$inc": {"count": 1} })
 
         print(f"[Whisper] {username}, You came first in {player_time} seconds.{title}")
         await tfm_bot.whisper(username, f"You came in first in {player_time} seconds.{title}")
