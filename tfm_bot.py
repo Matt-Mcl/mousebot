@@ -30,6 +30,7 @@ GREETINGS = ["Howdy, partner!", "Hey, howdy, hi!", "Put that Coffee Cup down!", 
 EIGHT_BALL = ["It is certain.", "It is decidedly so.", "Without a doubt.", "Yes definitely.", "You may rely on it.", "As I see it, yes.", "Most likely.", "Outlook good.", "Yes.", "Signs point to yes.", "Reply hazy, try again.", "Ask again later.", "Better not tell you now.", "Cannot predict now.", "Concentrate and ask again.", "Don't count on it.", "My reply is no.", "My sources say no.", "Outlook not so good.", "Very doubtful."]
 RECENT_MAPS = []
 TRIBE = []
+SHOP = []
 
 # Init Mongo DB
 mongo_client = pymongo.MongoClient()
@@ -70,6 +71,9 @@ async def on_ready():
     TRIBE.append(await tfm_bot.getTribe())
     time.sleep(1)
     await tfm_bot.enterTribe()
+    await tfm_bot.requestShopList()
+    SHOP.append(await tfm_bot.wait_for('on_shop', timeout=60))
+    print("Got shop data")
     
 
 @tfm_bot.event
@@ -373,15 +377,11 @@ async def process_command(message, origin, author, discord_channel=None):
             return ["No one is online."]
 
     elif message == f"{PREFIX}sales": # .sales
-
         if discord_channel is None:
             return ["Command only usable in discord"]
 
-        await tfm_bot.requestShopList()
-        shop = await tfm_bot.wait_for('on_shop', timeout=30)
-
+        shop = SHOP[0]
         sales = mousebot_sales.find({})
-
         output = []
 
         for item1 in sales:
@@ -390,16 +390,14 @@ async def process_command(message, origin, author, discord_channel=None):
             if item1['is_shaman']:
                 for item2 in shop.shaman_objects:
                     if item1['uid'] == item2.id:
-                        # print(item2.cheese, item2.fraise, item2.id, item2.category)
                         output.append(f"{item2.cheese} cheese, {item2.fraise} fraise, {item1['discount']}% discount {image_url}")
                         break
             else:
                 for item2 in shop.items:
                     if item1['id'] == item2.id and item1['category'] == item2.category:
-                        # print(item2.cheese, item2.fraise, item2.id, item2.category)
                         output.append(f"{item2.cheese} cheese, {item2.fraise} fraise, {item1['discount']}% discount {image_url}")
                         break
-        
+
         for item in output:
             await send_discord_message(discord_channel, item)
 
