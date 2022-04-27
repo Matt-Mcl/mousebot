@@ -36,12 +36,16 @@ mongo_client = pymongo.MongoClient()
 mousebot_db = mongo_client['mousebot']
 mousebot_greetings = mousebot_db['greetings']
 mousebot_titles = mousebot_db['titles']
+db_titles = list(mousebot_titles.find())
 mousebot_maps = mousebot_db['maps']
 mousebot_maps.create_index("code", unique=True)
-mousebot_map_categories = mousebot_db['map_categories']
 mousebot_map_records = mousebot_db['map_records']
+enums = mousebot_db['enums']
 mousebot_stats = mousebot_db['player_stats']
-db_titles = list(mousebot_titles.find())
+mousebot_sales = mousebot_db['sales']
+mousebot_sales.create_index(([("id", pymongo.ASCENDING), ("category", pymongo.ASCENDING), ("is_shaman", pymongo.ASCENDING)]), unique=True)
+mousebot_shop_items = mousebot_db['shop_items']
+
 
 #######################################################################################################################
 ################################################## TRANSFORMICE BOT ###################################################
@@ -162,11 +166,11 @@ async def on_joined_room(room):
 # @tfm_bot.event
 # async def on_raw_socket(connection, packet):
 #     CCC = packet.readCode()
-#     exclude = [(4, 3), (4, 4), (60, 3), (28, 6)]
+#     # exclude = [(4, 3), (4, 4), (60, 3), (28, 6)]
 #     # if CCC not in exclude:
 #     #     print(packet, CCC)
-#     if CCC == (60, 3):
-#         print(packet, CCC, packet.read16())
+#     if CCC == (8, 20):
+#         print(packet, CCC)
 
 
 @tfm_bot.event
@@ -191,11 +195,11 @@ async def on_kicked_member(name):
 
 @tfm_bot.event
 async def on_map_load(map_data):
-    category_name = mousebot_map_categories.find_one({"id": str(map_data['category'])})
     if len(map_data['author']) == 0 or str(map_data['category']) == "87":
         RECENT_MAPS.insert(0, f"(@{map_data['code']} - Vanilla)")
         return
     else:
+        category_name = enums.find_one({"type": "map_category", "data.id": str(map_data['category'])})['data']
         try:
             RECENT_MAPS.insert(0, f"({map_data['author']} - @{map_data['code']} - {category_name['name']})")
             mousebot_maps.insert_one(map_data)
@@ -242,17 +246,25 @@ async def on_player_won(player, order, player_time):
         await tfm_bot.whisper(username, f"You came in first in {player_time} seconds.{title}")
 
 
-async def process_command(message, origin, author, discord=False):
+@tfm_bot.event
+async def on_sale(item_data):
+    try:
+        mousebot_sales.insert_one(item_data)
+    except pymongo.errors.DuplicateKeyError:
+        pass
+
+
+async def process_command(message, origin, author, discord_channel=None):
     author_name = author
 
-    if origin != "tribe" and not discord:
+    if origin != "tribe" and discord_channel is None:
         author_name = author.username
 
     split_message = message.split(" ")
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page]"]
+        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page], .sales"]
         if author_name.title() in CONTROL:
             commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>, .restart, .status")
         return commands
@@ -347,6 +359,7 @@ async def process_command(message, origin, author, discord=False):
             title_items.append(f"{offline}{author_name.title()}, {', '.join(list(shaman_titles.values()))}")
 
         return title_items
+
     elif message == f"{PREFIX}online": # .online
         tribe = await tfm_bot.getTribe()
         members = tribe.members
@@ -358,66 +371,42 @@ async def process_command(message, origin, author, discord=False):
             return [f"Online Players: {', '.join(online)}"]
         else:
             return ["No one is online."]
+
     elif message == f"{PREFIX}sales": # .sales
+
+        if discord_channel is None:
+            return ["Command only usable in discord"]
+
         await tfm_bot.requestShopList()
-        # datas = [
-        #     b'\x01\x01\x00\x03\x82\xd4\x01bb\x1a\x002', 
-        #     b"\x01\x01\x00\x00'\xd4\x01bb\x1a\x00#",
-        #     b'\x01\x01\x00\x00\x02\xeb\x01bb\x1a\x00(',
-        #     b'\x01\x00\x00\x00\x00t\x01bb\x1a\x00\x1e',
-        #     b'\x01\x00\x00\x00\x00\xdb\x01bb\x1a\x00#'
-        # ]
-        # await tfm_bot.requestShopList()
-        # shop = await tfm_bot.wait_for('on_shop', timeout=10)
+        shop = await tfm_bot.wait_for('on_shop', timeout=30)
 
-        # for data in datas:
-        #     print('-----------------')
-        #     packet = aiotfm.Packet.new(20, 3).writeBytes(data)
+        sales = mousebot_sales.find({})
 
-        #     packet.readCode()
+        output = []
 
-        #     print(packet.readBool())
-        #     print(packet.readBool())
-        #     id = packet.read32()
-        #     print(id)
-        #     print(packet.readBool())
-        #     print(packet.read32() * 1000)
-        #     discount = packet.read8()
-        #     print(discount)
+        for item1 in sales:
+            image_url = mousebot_shop_items.find_one({'item_id': item1['id'], 'category': item1['category'], 'is_shaman': item1['is_shaman']})['img']
 
-        #     for item in shop.items:
-        #         # print(item.uid)
-        #         if int(item.uid) == int(id):
-        #             print('FOUND1')
-        #             print(item.cheese, item.fraise, item.fraise * (1 - (discount / 100)))
+            if item1['is_shaman']:
+                for item2 in shop.shaman_objects:
+                    if item1['uid'] == item2.id:
+                        # print(item2.cheese, item2.fraise, item2.id, item2.category)
+                        output.append(f"{item2.cheese} cheese, {item2.fraise} fraise, {item1['discount']}% discount {image_url}")
+                        break
+            else:
+                for item2 in shop.items:
+                    if item1['id'] == item2.id and item1['category'] == item2.category:
+                        # print(item2.cheese, item2.fraise, item2.id, item2.category)
+                        output.append(f"{item2.cheese} cheese, {item2.fraise} fraise, {item1['discount']}% discount {image_url}")
+                        break
+        
+        for item in output:
+            await send_discord_message(discord_channel, item)
 
-        #     for item in shop.shaman_objects:
-        #         # print(item.uid)
-        #         if int(item.id) == int(id):
-        #             print('FOUND2')
-        #             print(item.cheese, item.fraise, item.fraise * (1 - (discount / 100)))
-
-        #     print('-----------------')
-
-        # print(shop)
-        # _, shop_packet = await tfm_bot.wait_for('on_raw_socket', lambda _, p: p.readCode() == (20, 3), timeout=30)
-        # print(shop_packet)
-        # for item in shop.items:
-        #     if item.is_new:
-        #         print(item.id, item.category, item.cheese, item.fraise, item.special)
-        #     if item.fraise == 65:
-        #         print(item.id, item.category, item.cheese, item.fraise, item.special)
-        #     print(item.id, item.category, item.cheese, item.fraise, item.special)
-        # print("done")
     elif message.startswith(f"{PREFIX}8ball"):
         if len(split_message) == 1:
             return ["Please ask a question."]
         return [random.choice(EIGHT_BALL)]
-    elif message == f"{PREFIX}ping":
-        await tfm_bot.sendCommand("ping")
-        # ping = await tfm_bot.wait_for('on_ping', timeout=10)
-        # print(ping)
-        # return ping
     
     elif message in [f"{PREFIX}funcorp", f"{PREFIX}fc"]: # .funcorp            
         with open(f"{directory}/Funcorp_Lua.lua", 'r') as f:
@@ -544,20 +533,22 @@ async def on_ready():
 async def on_message(message):
     if message.author == discord_bot.user:
         return
+
     elif message.channel.id == int(TRIBE_CHAT):
         await send_tribe_message(f"[Discord] [{message.author.display_name}] {message.content}")
         if message.content.startswith(PREFIX):
-            output = await process_command(message.content, "tribe", f"{message.author.id}", True)
+            output = await process_command(message.content, "tribe", f"{message.author.id}", message.channel)
             if output is not None:
                 for item in output:
                     await send_tribe_message(item)
                     await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {item}")
+
     elif message.channel.id == int(TRIBE_ROOM_CHAT):
         is_tribe = tfm_bot.room.is_tribe
         if is_tribe:
             await send_room_message(f"[Discord] [{message.author.display_name}] {message.content}")
         if message.content.startswith(PREFIX):
-            output = await process_command(message.content, "room", f"{message.author.id}", True)
+            output = await process_command(message.content, "room", f"{message.author.id}", message.channel)
             if output is not None:
                 for item in output:
                     if is_tribe:

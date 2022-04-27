@@ -4,11 +4,13 @@ import pymongo
 mongo_client = pymongo.MongoClient()
 mousebot_db = mongo_client['mousebot']
 mousebot_titles = mousebot_db['titles']
-mousebot_map_categories = mousebot_db['map_categories']
+enums = mousebot_db['enums']
+shop_items = mousebot_db['shop_items']
 
 # Empty databases
 mousebot_titles.delete_many({})
-mousebot_map_categories.delete_many({})
+enums.delete_many({})
+shop_items.delete_many({})
 
 # Scrape Titles
 
@@ -72,4 +74,45 @@ for item in table.find("tr")[1:]:
     description = str(item.find("td")[3])
 
     if len(name) > 0:
-        mousebot_map_categories.insert_one({"id": id, "name": name, "description": description})
+        enums.insert_one({"type": "map_category", "data": {"id": id, "name": name, "description": description}})
+
+
+
+# Scrape item pages enum
+
+url = "https://transformice.fandom.com/wiki/Shop"
+html = get(url)
+soup = Soup(html)
+
+table = soup.find("table", {"class": "wikitable"})[0]
+
+row = table.find("tr")[1].find("td")
+
+
+for category in row:
+    cat = category.find('a').attrs.get('href')
+    category_url = f"https://transformice.fandom.com{cat}"
+    category_page = Soup(get(category_url))
+    category_id = str(category_page.find("p")[0]).split(" ")[-1].split(".")[0]
+    is_shaman = False
+    if cat == "/wiki/Shop/Colors":
+        category_id = 226
+    elif cat == "/wiki/Shop/Shaman":
+        category_id = "Shaman"
+        is_shaman = True
+    else:
+        category_id = int(category_id)
+
+    category_tables = category_page.find("table", {"class": "wikitable"})[1:]
+
+    if not is_shaman:
+        category_tables = [category_tables[0]]
+    
+    for i, cat_table in enumerate(category_tables):
+        if is_shaman:
+            category_id = i+1
+        for item in cat_table.find("tr")[1:]:
+            item_id = item.find("td")[0].text
+            img = item.find("td")[1].find("img").attrs.get("data-src")
+
+            shop_items.insert_one({"category": category_id, "item_id": int(item_id), "is_shaman": is_shaman, "img": img})
