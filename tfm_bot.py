@@ -407,7 +407,7 @@ async def process_command(message, origin, author, discord_channel=None):
         return [random.choice(EIGHT_BALL)]
     
     elif message in [f"{PREFIX}funcorp", f"{PREFIX}fc"]: # .funcorp            
-        with open(f"{directory}/Funcorp_Lua.lua", 'r') as f:
+        with open(f"{directory}/funcorp_lua.lua", 'r') as f:
             code = f.read()
             code = f"admin = {{\"{author_name.title()}\"}}\n" + code
             await tfm_bot.loadLua(code)
