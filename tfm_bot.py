@@ -259,8 +259,13 @@ async def on_sale(item_data):
     seconds = int(duration.total_seconds())
 
     try:
+        mousebot_sales.drop_index("expire_time_1")
+    except pymongo.errors.OperationFailure:
+        pass
+
+    try:
+        mousebot_sales.create_index("expire_time", expireAfterSeconds = seconds, partialFilterExpression = {"expire_time": item_data['expire_time']} )
         mousebot_sales.insert_one(item_data)
-        mousebot_sales.create_index({"expire_time": item_data['expire_time']}, { "expireAfterSeconds": seconds } )
     except pymongo.errors.DuplicateKeyError:
         pass
 
