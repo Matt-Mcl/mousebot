@@ -78,7 +78,7 @@ for item in table.find("tr")[1:]:
 
 
 
-# Scrape item pages enum
+# Scrape shop items
 
 url = "https://transformice.fandom.com/wiki/Shop"
 html = get(url)
@@ -113,6 +113,6 @@ for category in row:
             category_id = i+1
         for item in cat_table.find("tr")[1:]:
             item_id = item.find("td")[0].text
-            img = item.find("td")[1].find("img").attrs.get("data-src")
+            img = f"{'/'.join(item.find('td')[1].find('img').attrs.get('data-src').split('/')[:-1])}/100"
 
             shop_items.insert_one({"category": category_id, "item_id": int(item_id), "is_shaman": is_shaman, "img": img})

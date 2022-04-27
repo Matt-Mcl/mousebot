@@ -252,8 +252,15 @@ async def on_player_won(player, order, player_time):
 
 @tfm_bot.event
 async def on_sale(item_data):
+    now = datetime.now()
+    expiry_date = datetime.utcfromtimestamp(item_data['expire_time'])
+
+    duration = expiry_date - now
+    seconds = int(duration.total_seconds())
+
     try:
         mousebot_sales.insert_one(item_data)
+        mousebot_sales.create_index({"expire_time": item_data['expire_time']}, { "expireAfterSeconds": seconds } )
     except pymongo.errors.DuplicateKeyError:
         pass
 
@@ -272,7 +279,6 @@ async def process_command(message, origin, author, discord_channel=None):
         if author_name.title() in CONTROL:
             commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>, .restart, .status")
         return commands
-        
 
     elif message == f"{PREFIX}time": # .time
         await tfm_bot.sendCommand("time")
@@ -384,18 +390,31 @@ async def process_command(message, origin, author, discord_channel=None):
         sales = mousebot_sales.find({})
         output = []
 
+        now = datetime.now()
+        expiry_date = datetime.utcfromtimestamp(sales[0]['expire_time'])
+        duration = expiry_date - now
+        seconds = duration.total_seconds()
+
+        days, seconds = divmod(seconds, 86400)
+        hours, seconds = divmod(seconds, 3600)
+        minutes, seconds = divmod(seconds, 60)
+
+        expire_time = f"{int(days)}d {int(hours)}h {int(minutes)}m {int(seconds)}s"
+
         for item1 in sales:
             image_url = mousebot_shop_items.find_one({'item_id': item1['id'], 'category': item1['category'], 'is_shaman': item1['is_shaman']})['img']
 
             if item1['is_shaman']:
                 for item2 in shop.shaman_objects:
                     if item1['uid'] == item2.id:
-                        output.append(f"{item2.cheese} cheese, {item2.fraise} fraise, {item1['discount']}% discount {image_url}")
+                        output.append(f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{int((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%). `Ends in {expire_time}`")
+                        output.append(image_url)
                         break
             else:
                 for item2 in shop.items:
                     if item1['id'] == item2.id and item1['category'] == item2.category:
-                        output.append(f"{item2.cheese} cheese, {item2.fraise} fraise, {item1['discount']}% discount {image_url}")
+                        output.append(f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{int((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%). `Ends in {expire_time}`")
+                        output.append(image_url)
                         break
 
         for item in output:
