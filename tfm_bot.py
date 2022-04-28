@@ -8,6 +8,7 @@ import aiotfm
 import random
 import pymongo
 import requests
+from math import ceil
 from datetime import datetime
 from discord import Embed
 from discord.ext import commands
@@ -411,12 +412,12 @@ async def process_command(message, origin, author, discord_channel=None):
             if item1['is_shaman']:
                 for item2 in shop.shaman_objects:
                     if item1['uid'] == item2.id:
-                        output.append((f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{int((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%)\n`Ends in {expire_time}`", image_url))
+                        output.append((f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{ceil((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%)\n`Ends in {expire_time}`", image_url))
                         break
             else:
                 for item2 in shop.items:
                     if item1['id'] == item2.id and item1['category'] == item2.category:
-                        output.append((f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{int((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%)\n`Ends in {expire_time}`", image_url))
+                        output.append((f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{ceil((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%)\n`Ends in {expire_time}`", image_url))
                         break
 
         for item, url in output:
