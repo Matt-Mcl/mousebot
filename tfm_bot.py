@@ -9,6 +9,7 @@ import random
 import pymongo
 import requests
 from datetime import datetime
+from discord import Embed
 from discord.ext import commands
 
 # Environment Variables
@@ -252,19 +253,7 @@ async def on_player_won(player, order, player_time):
 
 @tfm_bot.event
 async def on_sale(item_data):
-    now = datetime.now()
-    expiry_date = datetime.utcfromtimestamp(item_data['expire_time'])
-
-    duration = expiry_date - now
-    seconds = int(duration.total_seconds())
-
     try:
-        mousebot_sales.drop_index("expire_time_1")
-    except pymongo.errors.OperationFailure:
-        pass
-
-    try:
-        mousebot_sales.create_index("expire_time", expireAfterSeconds = seconds, partialFilterExpression = {"expire_time": item_data['expire_time']} )
         mousebot_sales.insert_one(item_data)
     except pymongo.errors.DuplicateKeyError:
         pass
@@ -287,8 +276,8 @@ async def process_command(message, origin, author, discord_channel=None):
 
     elif message == f"{PREFIX}time": # .time
         await tfm_bot.sendCommand("time")
-        time = await tfm_bot.wait_for('on_time', timeout=3)
-        return [time]
+        time_string = await tfm_bot.wait_for('on_time', timeout=3)
+        return [time_string]
 
     elif message.startswith(f"{PREFIX}mom"): # .mom
         with open(f"{directory}/jokes.txt", "r") as file:
@@ -391,9 +380,19 @@ async def process_command(message, origin, author, discord_channel=None):
         if discord_channel is None:
             return ["Command only usable in discord"]
 
-        shop = SHOP[0]
+        # Remove old sales if any
         sales = mousebot_sales.find({})
+
+        now = int(time.time())
+
+        for item in sales:
+            if item['expire_time'] < now:
+                mousebot_sales.delete_one({'_id': item['_id']})
+
+        # Print sales
+        shop = SHOP[0]
         output = []
+        sales = mousebot_sales.find({})
 
         now = datetime.now()
         expiry_date = datetime.utcfromtimestamp(sales[0]['expire_time'])
@@ -412,18 +411,18 @@ async def process_command(message, origin, author, discord_channel=None):
             if item1['is_shaman']:
                 for item2 in shop.shaman_objects:
                     if item1['uid'] == item2.id:
-                        output.append(f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{int((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%). `Ends in {expire_time}`")
-                        output.append(image_url)
+                        output.append((f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{int((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%)\n`Ends in {expire_time}`", image_url))
                         break
             else:
                 for item2 in shop.items:
                     if item1['id'] == item2.id and item1['category'] == item2.category:
-                        output.append(f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{int((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%). `Ends in {expire_time}`")
-                        output.append(image_url)
+                        output.append((f"**{item2.cheese}** {config['CHEESE_EMOJI']} or ~~{item2.fraise}~~ **{int((1 - item1['discount']/100) * item2.fraise)}** {config['FRAISE_EMOJI']} (-{item1['discount']}%)\n`Ends in {expire_time}`", image_url))
                         break
 
-        for item in output:
-            await send_discord_message(discord_channel, item)
+        for item, url in output:
+            embed = Embed(title=item)
+            embed.set_image(url=str(url))
+            await discord_channel.send(embed=embed)
 
     elif message.startswith(f"{PREFIX}8ball"):
         if len(split_message) == 1:
