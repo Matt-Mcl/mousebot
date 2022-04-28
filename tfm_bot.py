@@ -522,6 +522,26 @@ async def process_command(message, origin, author, discord_channel=None):
     if author_name.title() in OWNER:
         if message.startswith(f"{PREFIX}exec"): # .exec <command>
             return [subprocess.check_output(split_message[1:]).decode("utf-8").strip()]
+        
+        elif message.startswith(f"{PREFIX}stat"): # .stat <username> <stat> <get/change>
+            user = split_message[1]
+            stat = split_message[2]
+            operation = split_message[3]
+
+            today = datetime.now().strftime("%Y/%m/%d")
+
+            if operation == "get":
+                count = mousebot_stats.find_one({"name": user, "type": stat, "time": today})['count']
+                return [f"{user} has got {count} {stat} today"]
+
+            row = mousebot_stats.find_one({"name": user, "type": stat, "time": today})
+
+            if row is None:
+                mousebot_stats.insert_one({"name": user, "type": stat, "time": today, "count": int(operation)})
+                return [f"Set {user}'s {stat} to {operation}"]
+            else:
+                mousebot_stats.update_one({"name": user, "type": stat, "time": today}, { "$inc": {"count": int(operation)} })
+                return [f"Added {operation} to {user}'s {stat}"]
 
     # Room specific commands
     if origin == "room":
