@@ -630,7 +630,15 @@ async def tribe_status_message(message):
 
 # Main bot loops
 loop = asyncio.get_event_loop()
-loop.create_task(tfm_bot.start())
+
+try:
+    loop.create_task(tfm_bot.start())
+except aiotfm.errors.AiotfmException:
+    print("Server Unreachable, sleeping 2 mins..")
+    time.sleep("120")
+    sys.exit(1)
+
+
 loop.create_task(discord_bot.run(TOKEN))
 
 loop.run_forever()
