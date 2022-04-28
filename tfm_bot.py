@@ -16,7 +16,7 @@ from discord.ext import commands
 # Environment Variables
 directory = sys.argv[1]
 
-with open(f"{directory}/config.json") as f:
+with open(f"{directory}/config/config.json") as f:
     config = json.load(f)
 
 TOKEN = config['DISCORD_TOKEN']
@@ -281,7 +281,7 @@ async def process_command(message, origin, author, discord_channel=None):
         return [time_string]
 
     elif message.startswith(f"{PREFIX}mom"): # .mom
-        with open(f"{directory}/jokes.txt", "r") as file:
+        with open(f"{directory}/statics/jokes.txt", "r") as file:
             jokes = file.read().split("\n")
             joke = random.choice(jokes)
             
@@ -431,7 +431,7 @@ async def process_command(message, origin, author, discord_channel=None):
         return [random.choice(EIGHT_BALL)]
     
     elif message in [f"{PREFIX}funcorp", f"{PREFIX}fc"]: # .funcorp            
-        with open(f"{directory}/funcorp_lua.lua", 'r') as f:
+        with open(f"{directory}/statics/funcorp_lua.lua", 'r') as f:
             code = f.read()
             code = f"admin = {{\"{author_name.title()}\"}}\n" + code
             await tfm_bot.loadLua(code)
