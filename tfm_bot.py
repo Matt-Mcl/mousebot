@@ -9,7 +9,7 @@ import random
 import pymongo
 import requests
 from math import ceil
-from datetime import datetime
+from datetime import datetime, timedelta
 from discord import Embed
 from discord.ext import commands
 
@@ -70,13 +70,19 @@ async def on_login_ready(*a):
 @tfm_bot.event
 async def on_ready():
     print(f'Connected to the community platform in {tfm_bot.loop.time() - boot_time:.2f} seconds')
+
+    print("Getting Tribe data..", end=' ')
     TRIBE.append(await tfm_bot.getTribe())
+    print("Done")
+
     time.sleep(1)
     await tfm_bot.enterTribe()
+
+    print("Getting Shop data..", end=' ')
     await tfm_bot.requestShopList()
     SHOP.append(await tfm_bot.wait_for('on_shop', timeout=60))
-    print("Got shop data")
-    
+    print("Done")
+
 
 @tfm_bot.event
 async def on_whisper(message):
@@ -134,6 +140,27 @@ async def on_member_connected(name):
     
     await send_discord_message(channel, f"[TFM] {name.title()} has connected! {greeting}")
     await send_tribe_message(greeting)
+
+    today = datetime.now().strftime("%Y/%m/%d")
+
+    player_row = mousebot_stats.find_one({"name": name.title(), "time": today})
+    if player_row is None:
+        await tfm_bot.sendCommand(f"profile {name.title()}")
+        profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == name.title(), timeout=10)
+
+        stats_dict = {
+            "name": name.title(),
+            "cheese": profile.stats.gatheredCheese,
+            "firsts": profile.stats.firsts,
+            "bootcamps": profile.stats.bootcamps,
+            "normalModeSaves": profile.stats.normalModeSaves,
+            "hardModeSaves": profile.stats.hardModeSaves,
+            "divineModeSaves": profile.stats.divineModeSaves,
+            "withoutSkillSaves": profile.stats.withoutSkillSaves,
+            "time": today
+        }
+
+        mousebot_stats.insert_one(stats_dict)
 
 
 @tfm_bot.event
@@ -222,15 +249,6 @@ async def on_player_won(player, order, player_time):
     if username not in member_names:
         return
 
-    today = datetime.now().strftime("%Y/%m/%d")
-
-    cheese_row = mousebot_stats.find_one({"name": username, "type": "cheese", "time": today})
-
-    if cheese_row is None:
-        mousebot_stats.insert_one({"name": username, "type": "cheese", "time": today, "count": 1})
-    else:
-        mousebot_stats.update_one({"name": username, "type": "cheese", "time": today}, { "$inc": {"count": 1} })
-
     if order == 1:
         await tfm_bot.sendCommand(f"profile {username}")
         profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == username, timeout=3)
@@ -240,13 +258,6 @@ async def on_player_won(player, order, player_time):
             if item['type'] == "cheese_first" and item['number'] > firsts:
                 title = f" You need {item['number'] - firsts} more firsts for «{'/'.join(item['titles'])}»"
                 break
-
-        first_row = mousebot_stats.find_one({"name": username, "type": "first", "time": today})
-
-        if first_row is None:
-            mousebot_stats.insert_one({"name": username, "type": "first", "time": today, "count": 1})
-        else:
-            mousebot_stats.update_one({"name": username, "type": "first", "time": today}, { "$inc": {"count": 1} })
 
         print(f"[Whisper] {username}, You came first in {player_time} seconds.{title}")
         await tfm_bot.whisper(username, f"You came in first in {player_time} seconds.{title}")
@@ -462,6 +473,36 @@ async def process_command(message, origin, author, discord_channel=None):
 
         return [f"{db_record[0]['name']} - {db_record[0]['time']}. ({db_record[0]['code']} - {db_record[0]['category']})"]
 
+    elif message.startswith(f"{PREFIX}stats"): # .stats [player]
+        today = datetime.now().strftime("%Y/%m/%d")
+        player = author_name.title()
+        
+        if len(split_message) > 1:
+            player = split_message[1].title()
+
+        stats_today = mousebot_stats.find_one({"name": player, "time": today})
+
+        if stats_today is None:
+            return ["No stats found for player today"]
+
+        await tfm_bot.sendCommand(f"profile {player}")
+        try:
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == player, timeout=3)
+        except asyncio.exceptions.TimeoutError:
+            return ["Player not online or not found"]
+        
+        stats_differences = {
+            "cheese": int(profile.stats.gatheredCheese - stats_today["cheese"]),
+            "firsts": int(profile.stats.firsts - stats_today["firsts"]),
+            "bootcamps": int(profile.stats.bootcamps - stats_today["bootcamps"]),
+            "normalModeSaves": int(profile.stats.normalModeSaves - stats_today["normalModeSaves"]),
+            "hardModeSaves": int(profile.stats.hardModeSaves - stats_today["hardModeSaves"]),
+            "divineModeSaves": int(profile.stats.divineModeSaves - stats_today["divineModeSaves"]),
+            "withoutSkillSaves": int(profile.stats.withoutSkillSaves - stats_today["withoutSkillSaves"])
+        }
+
+        return [f"{player} stat gains today: {stats_differences['cheese']} cheese, {stats_differences['firsts']} first(s), {stats_differences['bootcamps']} bootcamp(s), {stats_differences['normalModeSaves']} normal save(s), {stats_differences['hardModeSaves']} hard save(s), {stats_differences['divineModeSaves']} divine save(s), {stats_differences['withoutSkillSaves']} without skill save(s)."]
+
 
     # Admin commands
     if author_name.title() in CONTROL:
@@ -523,26 +564,6 @@ async def process_command(message, origin, author, discord_channel=None):
         if message.startswith(f"{PREFIX}exec"): # .exec <command>
             return [subprocess.check_output(split_message[1:]).decode("utf-8").strip()]
         
-        elif message.startswith(f"{PREFIX}stat"): # .stat <username> <stat> <get/change>
-            user = split_message[1]
-            stat = split_message[2]
-            operation = split_message[3]
-
-            today = datetime.now().strftime("%Y/%m/%d")
-
-            if operation == "get":
-                count = mousebot_stats.find_one({"name": user, "type": stat, "time": today})['count']
-                return [f"{user} has got {count} {stat} today"]
-
-            row = mousebot_stats.find_one({"name": user, "type": stat, "time": today})
-
-            if row is None:
-                mousebot_stats.insert_one({"name": user, "type": stat, "time": today, "count": int(operation)})
-                return [f"Set {user}'s {stat} to {operation}"]
-            else:
-                mousebot_stats.update_one({"name": user, "type": stat, "time": today}, { "$inc": {"count": int(operation)} })
-                return [f"Added {operation} to {user}'s {stat}"]
-
     # Room specific commands
     if origin == "room":
         if message == f"{PREFIX}selfie": # .selfie
@@ -565,10 +586,10 @@ async def on_ready():
         if guild.name == GUILD:
             break
 
-    print(
-        f'{discord_bot.user} is connected to the following guild:\n'
-        f'{guild.name}(id: {guild.id})'
-    )
+    # print(
+    #     f'{discord_bot.user} is connected to the following guild:\n'
+    #     f'{guild.name}(id: {guild.id})'
+    # )
 
 
 @discord_bot.event
@@ -625,7 +646,6 @@ async def tribe_status_message(message):
     channel = discord_bot.get_channel(int(LOG_CHAT))
     await send_discord_message(channel, f"[Tribe Status] {message}")
     TRIBE[0] = await tfm_bot.getTribe()
-    
 
 
 # Main bot loops
