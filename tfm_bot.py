@@ -9,7 +9,7 @@ import random
 import pymongo
 import requests
 from math import ceil
-from datetime import datetime, timedelta
+from datetime import datetime
 from discord import Embed
 from discord.ext import commands
 
@@ -43,7 +43,7 @@ db_titles = list(mousebot_titles.find())
 mousebot_maps = mousebot_db['maps']
 mousebot_maps.create_index("code", unique=True)
 mousebot_map_records = mousebot_db['map_records']
-enums = mousebot_db['enums']
+mousebot_enums = mousebot_db['enums']
 mousebot_stats = mousebot_db['player_stats']
 mousebot_sales = mousebot_db['sales']
 mousebot_sales.create_index(([("id", pymongo.ASCENDING), ("category", pymongo.ASCENDING), ("is_shaman", pymongo.ASCENDING)]), unique=True)
@@ -71,12 +71,16 @@ async def on_login_ready(*a):
 async def on_ready():
     print(f'Connected to the community platform in {tfm_bot.loop.time() - boot_time:.2f} seconds')
 
+    time.sleep(1)
+    last_room = mousebot_enums.find_one({"type": "room"})['data']
+    if last_room['is_tribe']:
+        await tfm_bot.enterTribe()
+    else:
+        await tfm_bot.joinRoom(last_room['name'])
+
     print("Getting Tribe data..", end=' ')
     TRIBE.append(await tfm_bot.getTribe())
     print("Done")
-
-    time.sleep(1)
-    await tfm_bot.enterTribe()
 
     print("Getting Shop data..", end=' ')
     await tfm_bot.requestShopList()
@@ -193,7 +197,8 @@ async def on_emoji(player, emoji):
 
 @tfm_bot.event
 async def on_joined_room(room):
-    print('Joined room:', room)
+    if room.name != config['room']:
+        mousebot_enums.update_one({"type": "room"}, {"$set": {"data.name": room.name, "data.is_tribe": room.is_tribe}})
 
 
 # @tfm_bot.event
@@ -232,7 +237,7 @@ async def on_map_load(map_data):
         RECENT_MAPS.insert(0, f"(@{map_data['code']} - Vanilla)")
         return
     else:
-        category_name = enums.find_one({"type": "map_category", "data.id": str(map_data['category'])})['data']
+        category_name = mousebot_enums.find_one({"type": "map_category", "data.id": str(map_data['category'])})['data']
         try:
             RECENT_MAPS.insert(0, f"({map_data['author']} - @{map_data['code']} - {category_name['name']})")
             mousebot_maps.insert_one(map_data)
@@ -538,6 +543,12 @@ async def process_command(message, origin, author, discord_channel=None):
 
         elif message.startswith(f"{PREFIX}room"): # .room <room> [password]
             await tfm_bot.joinRoom(" ".join(split_message[1:]))
+            try:
+                room = await tfm_bot.wait_for('on_joined_room', timeout=5)
+            except asyncio.exceptions.TimeoutError:
+                return ["Room join failed, try again"]
+            return [f"Joined room {room.name}"]
+
 
         elif message.startswith(f"{PREFIX}lua"): # .lua <pastebin>
             if len(split_message) == 1:
