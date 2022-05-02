@@ -9,7 +9,7 @@ shop_items = mousebot_db['shop_items']
 
 # Empty databases
 mousebot_titles.delete_many({})
-enums.delete_many({})
+enums.delete_many({"type": "map_category"})
 shop_items.delete_many({})
 
 # Scrape Titles
@@ -96,7 +96,7 @@ for category in row:
     category_id = str(category_page.find("p")[0]).split(" ")[-1].split(".")[0]
     is_shaman = False
     if cat == "/wiki/Shop/Colors":
-        category_id = 226
+        category_id = 21
     elif cat == "/wiki/Shop/Shaman":
         category_id = "Shaman"
         is_shaman = True
@@ -105,12 +105,14 @@ for category in row:
 
     category_tables = category_page.find("table", {"class": "wikitable"})[1:]
 
+    category_ids = [cid.text.split(" ")[-1] for cid in category_page.find("p") if "Category ID" in cid.text]
+
     if not is_shaman:
         category_tables = [category_tables[0]]
     
     for i, cat_table in enumerate(category_tables):
         if is_shaman:
-            category_id = i+1
+            category_id = int(category_ids[i])
         for item in cat_table.find("tr")[1:]:
             item_id = item.find("td")[0].text
             img = f"{'/'.join(item.find('td')[1].find('img').attrs.get('data-src').split('/')[:-1])}/100"
