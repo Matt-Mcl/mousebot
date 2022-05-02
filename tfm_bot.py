@@ -63,13 +63,13 @@ PREFIX="."
 
 @tfm_bot.event
 async def on_login_ready(*a):
-    print('Logging in ...')
+    log_message('Logging in ...')
     await tfm_bot.login(config['username'], config['password'], config['encrypted'], config['room'])
 
 
 @tfm_bot.event
 async def on_ready():
-    print(f'Connected to the community platform in {tfm_bot.loop.time() - boot_time:.2f} seconds')
+    log_message(f'Connected to the community platform in {tfm_bot.loop.time() - boot_time:.2f} seconds')
 
     time.sleep(1)
     last_room = mousebot_enums.find_one({"type": "room"})['data']
@@ -78,14 +78,14 @@ async def on_ready():
     else:
         await tfm_bot.joinRoom(last_room['name'])
 
-    print("Getting Tribe data..", end=' ')
+    log_message("Getting Tribe data..", end=' ')
     TRIBE.append(await tfm_bot.getTribe())
-    print("Done")
+    log_message("Done")
 
-    print("Getting Shop data..", end=' ')
+    log_message("Getting Shop data..", end=' ')
     await tfm_bot.requestShopList()
     SHOP.append(await tfm_bot.wait_for('on_shop', timeout=60))
-    print("Done")
+    log_message("Done")
 
 
 @tfm_bot.event
@@ -95,7 +95,7 @@ async def on_whisper(message):
     if output is not None:
         for item in output:
             await message.reply(item)
-            print(f"[Whisper] [{author}] {item}")
+            log_message(f"[Whisper] [{author}] {item}")
 
 
 @tfm_bot.event
@@ -176,7 +176,7 @@ async def on_member_disconnected(name):
 # @tfm_bot.event
 # async def on_server_message(message):
 #     channel = discord_bot.get_channel(int(LOG_CHAT))
-#     print(f"[SERVER] {message}")
+#     log_message(f"[SERVER] {message}")
 #     await send_discord_message(channel, f"[SERVER] {message}")
 
 
@@ -206,9 +206,9 @@ async def on_joined_room(room):
 #     CCC = packet.readCode()
 #     # exclude = [(4, 3), (4, 4), (60, 3), (28, 6)]
 #     # if CCC not in exclude:
-#     #     print(packet, CCC)
+#     #     log_message(packet, CCC)
 #     if CCC == (8, 20):
-#         print(packet, CCC)
+#         log_message(packet, CCC)
 
 
 @tfm_bot.event
@@ -264,7 +264,7 @@ async def on_player_won(player, order, player_time):
                 title = f" You need {item['number'] - firsts} more firsts for «{'/'.join(item['titles'])}»"
                 break
 
-        print(f"[Whisper] {username}, You came first in {player_time} seconds.{title}")
+        log_message(f"[Whisper] {username}, You came first in {player_time} seconds.{title}")
         await tfm_bot.whisper(username, f"You came in first in {player_time} seconds.{title}")
 
 
@@ -602,7 +602,7 @@ async def on_ready():
         if guild.name == GUILD:
             break
 
-    # print(
+    # log_message(
     #     f'{discord_bot.user} is connected to the following guild:\n'
     #     f'{guild.name}(id: {guild.id})'
     # )
@@ -644,24 +644,30 @@ async def on_message(message):
 # Helper functions
 async def send_tribe_message(message):
     await tfm_bot.sendTribeMessage(message)
-    print(f"[tribe-chat] {message}")
+    log_message(f"[tribe-chat] {message}")
 
 
 async def send_room_message(message):
     await tfm_bot.sendRoomMessage(message)
-    print(f"[tribe-room-chat] {message}")
+    log_message(f"[tribe-room-chat] {message}")
 
 
 async def send_discord_message(channel, message):
     await channel.send(message)
-    print(f"[{channel}] {message}")
+    log_message(f"[{channel}] {message}")
+
 
 async def tribe_status_message(message):
     await send_tribe_message(message)
-    print(f"[Tribe Status] {message}")
+    log_message(f"[Tribe Status] {message}")
     channel = discord_bot.get_channel(int(LOG_CHAT))
     await send_discord_message(channel, f"[Tribe Status] {message}")
     TRIBE[0] = await tfm_bot.getTribe()
+
+
+def log_message(message, end="\n"):
+    now = datetime.now().strftime("%Y/%m/%d, %H:%M:%S")
+    print(f"[{now}] {message}", end=end)
 
 
 # Main bot loops
@@ -670,7 +676,7 @@ loop = asyncio.get_event_loop()
 try:
     loop.create_task(tfm_bot.start())
 except aiotfm.errors.AiotfmException:
-    print("Server Unreachable, sleeping 2 mins..")
+    log_message("Server Unreachable, sleeping 2 mins..")
     time.sleep("120")
     sys.exit(1)
 
