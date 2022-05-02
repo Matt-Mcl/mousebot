@@ -540,6 +540,11 @@ async def process_command(message, origin, author, discord_channel=None):
 
         elif message == f"{PREFIX}tribe": # .tribe
             await tfm_bot.enterTribe()
+            try:
+                room = await tfm_bot.wait_for('on_joined_room', timeout=5)
+            except asyncio.exceptions.TimeoutError:
+                return ["Room join failed, try again"]
+            return [f"Joined tribe house"]
 
         elif message.startswith(f"{PREFIX}room"): # .room <room> [password]
             await tfm_bot.joinRoom(" ".join(split_message[1:]))
