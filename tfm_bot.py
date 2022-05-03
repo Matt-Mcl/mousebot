@@ -623,9 +623,14 @@ async def on_message(message):
                     await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {item}")
 
     elif message.channel.id == int(TRIBE_ROOM_CHAT):
-        is_tribe = tfm_bot.room.is_tribe
+        try:
+            is_tribe = tfm_bot.room.is_tribe
+        except AttributeError:
+            return log_message(f"[NOT ONLINE] [Discord] [{message.author.display_name}] {message.content}")
+
         if is_tribe:
             await send_room_message(f"[Discord] [{message.author.display_name}] {message.content}")
+
         if message.content.startswith(PREFIX):
             output = await process_command(message.content, "room", f"{message.author.id}", message.channel)
             if output is not None:
