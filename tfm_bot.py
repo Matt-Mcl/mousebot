@@ -78,14 +78,18 @@ async def on_ready():
     else:
         await tfm_bot.joinRoom(last_room['name'])
 
-    log_message("Getting Tribe data..", end=' ')
+    log_message("Getting Tribe data..")
     TRIBE.append(await tfm_bot.getTribe())
-    log_message("Done")
+    log_message("Getting Tribe data: Done")
 
-    log_message("Getting Shop data..", end=' ')
+    log_message("Getting Shop data..")
     await tfm_bot.requestShopList()
     SHOP.append(await tfm_bot.wait_for('on_shop', timeout=60))
-    log_message("Done")
+    log_message("Getting Shop data: Done")
+
+    log_message("Getting Stats..")
+    await get_stats()
+    log_message("Getting Stats: Done")
 
 
 @tfm_bot.event
@@ -145,26 +149,9 @@ async def on_member_connected(name):
     await send_discord_message(channel, f"[TFM] {name.title()} has connected! {greeting}")
     await send_tribe_message(greeting)
 
-    today = datetime.now().strftime("%Y/%m/%d")
-
-    player_row = mousebot_stats.find_one({"name": name.title(), "time": today})
-    if player_row is None:
-        await tfm_bot.sendCommand(f"profile {name.title()}")
-        profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == name.title(), timeout=10)
-
-        stats_dict = {
-            "name": name.title(),
-            "cheese": profile.stats.gatheredCheese,
-            "firsts": profile.stats.firsts,
-            "bootcamps": profile.stats.bootcamps,
-            "normalModeSaves": profile.stats.normalModeSaves,
-            "hardModeSaves": profile.stats.hardModeSaves,
-            "divineModeSaves": profile.stats.divineModeSaves,
-            "withoutSkillSaves": profile.stats.withoutSkillSaves,
-            "time": today
-        }
-
-        mousebot_stats.insert_one(stats_dict)
+    log_message("Getting Stats..")
+    await get_stats()
+    log_message("Getting Stats: Done")
 
 
 @tfm_bot.event
@@ -673,6 +660,32 @@ async def tribe_status_message(message):
 def log_message(message, end="\n"):
     now = datetime.now().strftime("%Y/%m/%d, %H:%M:%S")
     print(f"[{now}] {message}", end=end)
+
+
+async def get_stats():
+    online_members = [member.name.title() for member in TRIBE[0].members if member.online]
+
+    today = datetime.now().strftime("%Y/%m/%d")
+
+    for name in online_members:
+        player_row = mousebot_stats.find_one({"name": name.title(), "time": today})
+        if player_row is None:
+            await tfm_bot.sendCommand(f"profile {name.title()}")
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == name.title(), timeout=10)
+
+            stats_dict = {
+                "name": name.title(),
+                "cheese": profile.stats.gatheredCheese,
+                "firsts": profile.stats.firsts,
+                "bootcamps": profile.stats.bootcamps,
+                "normalModeSaves": profile.stats.normalModeSaves,
+                "hardModeSaves": profile.stats.hardModeSaves,
+                "divineModeSaves": profile.stats.divineModeSaves,
+                "withoutSkillSaves": profile.stats.withoutSkillSaves,
+                "time": today
+            }
+
+            mousebot_stats.insert_one(stats_dict)
 
 
 # Main bot loops
