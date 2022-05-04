@@ -87,9 +87,7 @@ async def on_ready():
     SHOP.append(await tfm_bot.wait_for('on_shop', timeout=60))
     log_message("Getting Shop data: Done")
 
-    log_message("Getting Stats..")
     await get_stats()
-    log_message("Getting Stats: Done")
 
 
 @tfm_bot.event
@@ -108,7 +106,7 @@ async def on_room_message(message):
     # Check if message send by bot
     if author == config['username']:
         return
-    member_names = [member.name.title() for member in TRIBE[0].members]
+    member_names = [member.name.capitalize() for member in TRIBE[0].members]
     if author not in member_names:
         return
     channel = discord_bot.get_channel(int(TRIBE_ROOM_CHAT))
@@ -117,12 +115,12 @@ async def on_room_message(message):
     if output is not None:
         for item in output:
             await send_room_message(item)
-            await send_discord_message(channel, f"[TFM] [{config['username'].title()}] {item}")
+            await send_discord_message(channel, f"[TFM] [{config['username'].capitalize()}] {item}")
 
 
 @tfm_bot.event
 async def on_tribe_message(author, message):
-    author = author.title()
+    author = author.capitalize()
     # Check if message send by bot
     if author == config['username']:
         return
@@ -132,32 +130,30 @@ async def on_tribe_message(author, message):
     if output is not None:
         for item in output:
             await send_tribe_message(item)
-            await send_discord_message(channel, f"[TFM] [{config['username'].title()}] {item}")
+            await send_discord_message(channel, f"[TFM] [{config['username'].capitalize()}] {item}")
 
 
 @tfm_bot.event
 async def on_member_connected(name):
     channel = discord_bot.get_channel(int(TRIBE_CHAT))
     db_greetings = list(mousebot_greetings.aggregate([
-        { "$match": {"name": name.title()} },
+        { "$match": {"name": name.capitalize()} },
         { "$sample": { "size": 1 } }
     ]))
     greeting = random.choice(GREETINGS)
     if len(db_greetings) > 0:
         greeting = db_greetings[0]['greeting']
     
-    await send_discord_message(channel, f"[TFM] {name.title()} has connected! {greeting}")
+    await send_discord_message(channel, f"[TFM] {name.capitalize()} has connected! {greeting}")
     await send_tribe_message(greeting)
 
-    log_message("Getting Stats..")
     await get_stats()
-    log_message("Getting Stats: Done")
 
 
 @tfm_bot.event
 async def on_member_disconnected(name):
     channel = discord_bot.get_channel(int(TRIBE_CHAT))
-    await send_discord_message(channel, f"[TFM] {name.title()} has disconnected.")
+    await send_discord_message(channel, f"[TFM] {name.capitalize()} has disconnected.")
 
 
 # @tfm_bot.event
@@ -184,6 +180,7 @@ async def on_emoji(player, emoji):
 
 @tfm_bot.event
 async def on_joined_room(room):
+    log_message(f"Joined room {room.name}")
     if room.name != config['room']:
         mousebot_enums.update_one({"type": "room"}, {"$set": {"data.name": room.name, "data.is_tribe": room.is_tribe}})
 
@@ -205,17 +202,18 @@ async def on_connection_error(connection, exception):
 
 @tfm_bot.event
 async def on_new_member(name):
-    await tribe_status_message(f"{name.title()} has joined the tribe! Welcome!!")
+    await tribe_status_message(f"{name.capitalize()} has joined the tribe! Welcome!!")
+    await get_stats()
 
 
 @tfm_bot.event
 async def on_left_member(name):
-    await tribe_status_message(f"{name.title()} has left the tribe. Sad.")
+    await tribe_status_message(f"{name.capitalize()} has left the tribe. Sad.")
 
 
 @tfm_bot.event
 async def on_kicked_member(name):
-    await tribe_status_message(f"{name.title()} has been kicked from the tribe! Later bitch!!")
+    await tribe_status_message(f"{name.capitalize()} has been kicked from the tribe! Later bitch!!")
 
 
 @tfm_bot.event
@@ -236,8 +234,8 @@ async def on_map_load(map_data):
 
 @tfm_bot.event
 async def on_player_won(player, order, player_time):
-    username = player.username.title()
-    member_names = [member.name.title() for member in TRIBE[0].members]
+    username = player.username.capitalize()
+    member_names = [member.name.capitalize() for member in TRIBE[0].members]
     if username not in member_names:
         return
 
@@ -274,7 +272,7 @@ async def process_command(message, origin, author, discord_channel=None):
     # General commands
     if message == f"{PREFIX}help": # .help
         commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page], .sales"]
-        if author_name.title() in CONTROL:
+        if author_name.capitalize() in CONTROL:
             commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>, .restart, .status")
         return commands
 
@@ -313,7 +311,7 @@ async def process_command(message, origin, author, discord_channel=None):
             author_name = split_message[1]
         await tfm_bot.sendCommand(f"profile {author_name}")
         try:
-            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.title(), timeout=3)
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.capitalize(), timeout=3)
             cheese = profile.stats.gatheredCheese
             firsts = profile.stats.firsts
             bootcamps = profile.stats.bootcamps
@@ -322,7 +320,7 @@ async def process_command(message, origin, author, discord_channel=None):
             divineModeSaves = profile.stats.divineModeSaves
             withoutSkillSaves = profile.stats.withoutSkillSaves
         except asyncio.exceptions.TimeoutError:
-            json = requests.get(f"https://cheese.formice.com/api/players/{author_name.title().replace('#', '-')}").json()
+            json = requests.get(f"https://cheese.formice.com/api/players/{author_name.capitalize().replace('#', '-')}").json()
             if "error" in json:
                 return [json['message']]
             cheese = json['stats']['mouse']['cheese']
@@ -362,9 +360,9 @@ async def process_command(message, origin, author, discord_channel=None):
         title_items = []
 
         if len(main_titles) > 0:
-            title_items.append(f"{offline}{author_name.title()}, {', '.join(list(main_titles.values()))}")
+            title_items.append(f"{offline}{author_name.capitalize()}, {', '.join(list(main_titles.values()))}")
         if len(shaman_titles) > 0:
-            title_items.append(f"{offline}{author_name.title()}, {', '.join(list(shaman_titles.values()))}")
+            title_items.append(f"{offline}{author_name.capitalize()}, {', '.join(list(shaman_titles.values()))}")
 
         return title_items
 
@@ -373,8 +371,8 @@ async def process_command(message, origin, author, discord_channel=None):
         members = tribe.members
         online = []
         for member in members:
-            if member.online and member.name.title() != config['username']:
-                online.append(member.name.title())
+            if member.online and member.name.capitalize() != config['username']:
+                online.append(member.name.capitalize())
         if len(online) > 0:
             return [f"Online Players: {', '.join(online)}"]
         else:
@@ -436,7 +434,7 @@ async def process_command(message, origin, author, discord_channel=None):
     elif message in [f"{PREFIX}funcorp", f"{PREFIX}fc"]: # .funcorp            
         with open(f"{directory}/statics/funcorp_lua.lua", 'r') as f:
             code = f.read()
-            code = f"admin = {{\"{author_name.title()}\"}}\n" + code
+            code = f"admin = {{\"{author_name.capitalize()}\"}}\n" + code
             await tfm_bot.loadLua(code)
 
     elif message.startswith(f"{PREFIX}maps"): # .maps [page]
@@ -467,10 +465,10 @@ async def process_command(message, origin, author, discord_channel=None):
 
     elif message.startswith(f"{PREFIX}stats"): # .stats [player]
         today = datetime.now().strftime("%Y/%m/%d")
-        player = author_name.title()
+        player = author_name.capitalize()
         
         if len(split_message) > 1:
-            player = split_message[1].title()
+            player = split_message[1].capitalize()
 
         stats_today = mousebot_stats.find_one({"name": player, "time": today})
 
@@ -497,18 +495,18 @@ async def process_command(message, origin, author, discord_channel=None):
 
 
     # Admin commands
-    if author_name.title() in CONTROL:
+    if author_name.capitalize() in CONTROL:
         if message.startswith(f"{PREFIX}greetings"):
             # .greetings add/clear/list <name> <greeting>
             if split_message[1] == "add":
-                mousebot_greetings.insert_one({"name": split_message[2].title(), "greeting": " ".join(split_message[3:])})
-                return [f"Added greeting to {split_message[2].title()}"]
+                mousebot_greetings.insert_one({"name": split_message[2].capitalize(), "greeting": " ".join(split_message[3:])})
+                return [f"Added greeting to {split_message[2].capitalize()}"]
             elif split_message[1] == "clear":
-                mousebot_greetings.delete_many({"name": split_message[2].title()})
-                return [f"Cleared greetings of {split_message[2].title()}"]
+                mousebot_greetings.delete_many({"name": split_message[2].capitalize()})
+                return [f"Cleared greetings of {split_message[2].capitalize()}"]
             elif split_message[1] == "list":
-                greetings_list = [g['greeting'] for g in mousebot_greetings.find({"name": split_message[2].title()}, { "_id": 0, "name": 0})]
-                return [f"Greetings for {split_message[2].title()}: {greetings_list}"]
+                greetings_list = [g['greeting'] for g in mousebot_greetings.find({"name": split_message[2].capitalize()}, { "_id": 0, "name": 0})]
+                return [f"Greetings for {split_message[2].capitalize()}: {greetings_list}"]
 
         elif message.startswith(f"{PREFIX}control"):
             # .control add/del <username>
@@ -563,7 +561,7 @@ async def process_command(message, origin, author, discord_channel=None):
 
 
     # Owner Commands
-    if author_name.title() in OWNER:
+    if author_name.capitalize() in OWNER:
         if message.startswith(f"{PREFIX}exec"): # .exec <command>
             return [subprocess.check_output(split_message[1:]).decode("utf-8").strip()]
         
@@ -607,7 +605,7 @@ async def on_message(message):
             if output is not None:
                 for item in output:
                     await send_tribe_message(item)
-                    await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {item}")
+                    await send_discord_message(message.channel, f"[TFM] [{config['username'].capitalize()}] {item}")
 
     elif message.channel.id == int(TRIBE_ROOM_CHAT):
         try:
@@ -624,7 +622,7 @@ async def on_message(message):
                 for item in output:
                     if is_tribe:
                         await send_room_message(item)
-                    await send_discord_message(message.channel, f"[TFM] [{config['username'].title()}] {item}")
+                    await send_discord_message(message.channel, f"[TFM] [{config['username'].capitalize()}] {item}")
         elif not is_tribe:
             return await send_discord_message(message.channel, "Not in tribe house. Please use tribe-chat instead for non commands.")
 
@@ -663,29 +661,36 @@ def log_message(message, end="\n"):
 
 
 async def get_stats():
-    online_members = [member.name.title() for member in TRIBE[0].members if member.online]
+    log_message("Getting Stats..")
+    online_members = [member.name.capitalize() for member in TRIBE[0].members if member.online]
 
     today = datetime.now().strftime("%Y/%m/%d")
 
     for name in online_members:
-        player_row = mousebot_stats.find_one({"name": name.title(), "time": today})
+        player_row = mousebot_stats.find_one({"name": name.capitalize(), "time": today})
         if player_row is None:
-            await tfm_bot.sendCommand(f"profile {name.title()}")
-            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == name.title(), timeout=10)
+            await tfm_bot.sendCommand(f"profile {name.capitalize()}")
+            try:
+                profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == name.capitalize(), timeout=10)
+                stats_dict = {
+                    "name": name.capitalize(),
+                    "cheese": profile.stats.gatheredCheese,
+                    "firsts": profile.stats.firsts,
+                    "bootcamps": profile.stats.bootcamps,
+                    "normalModeSaves": profile.stats.normalModeSaves,
+                    "hardModeSaves": profile.stats.hardModeSaves,
+                    "divineModeSaves": profile.stats.divineModeSaves,
+                    "withoutSkillSaves": profile.stats.withoutSkillSaves,
+                    "time": today
+                }
 
-            stats_dict = {
-                "name": name.title(),
-                "cheese": profile.stats.gatheredCheese,
-                "firsts": profile.stats.firsts,
-                "bootcamps": profile.stats.bootcamps,
-                "normalModeSaves": profile.stats.normalModeSaves,
-                "hardModeSaves": profile.stats.hardModeSaves,
-                "divineModeSaves": profile.stats.divineModeSaves,
-                "withoutSkillSaves": profile.stats.withoutSkillSaves,
-                "time": today
-            }
+                mousebot_stats.insert_one(stats_dict)
+            except asyncio.exceptions.TimeoutError:
+                print(f"ERROR Occured while getting stats for {name.capitalize()}")
 
-            mousebot_stats.insert_one(stats_dict)
+
+    
+    log_message("Getting Stats: Done")
 
 
 # Main bot loops
