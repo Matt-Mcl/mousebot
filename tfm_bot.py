@@ -271,7 +271,7 @@ async def process_command(message, origin, author, discord_channel=None):
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page], .sales"]
+        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page], .sales, .discord"]
         if author_name.capitalize() in CONTROL:
             commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>, .restart, .status")
         return commands
@@ -492,6 +492,9 @@ async def process_command(message, origin, author, discord_channel=None):
         }
 
         return [f"{player} stat gains today: {stats_differences['cheese']} cheese, {stats_differences['firsts']} first(s), {stats_differences['bootcamps']} bootcamp(s), {stats_differences['normalModeSaves']} normal save(s), {stats_differences['hardModeSaves']} hard save(s), {stats_differences['divineModeSaves']} divine save(s), {stats_differences['withoutSkillSaves']} without skill save(s)."]
+
+    elif message.startswith(f"{PREFIX}discord"): # .discord
+        return ["Join the Discord here: https://discord.gg/hjuXYvUFBd"]
 
 
     # Admin commands
