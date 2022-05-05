@@ -9,7 +9,7 @@ import random
 import pymongo
 import requests
 from math import ceil
-from datetime import datetime
+from datetime import datetime, timedelta
 from discord import Embed
 from discord.ext import commands
 
@@ -272,7 +272,7 @@ async def process_command(message, origin, author, discord_channel=None):
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page], .sales, .discord"]
+        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page], .sales, .stats [day/week/month/all] [player], .discord"]
         if author_name.capitalize() in CONTROL:
             commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>, .restart, .status")
         return commands
@@ -464,16 +464,27 @@ async def process_command(message, origin, author, discord_channel=None):
 
         return [f"{db_record[0]['name']} - {db_record[0]['time']}. ({db_record[0]['code']} - {db_record[0]['category']})"]
 
-    elif message.startswith(f"{PREFIX}stats"): # .stats [player]
+    elif message.startswith(f"{PREFIX}stats"): # .stats [day/week/month/all] [player]
         today = datetime.now().strftime("%Y/%m/%d")
+        search_date = datetime.now()
         player = author_name.capitalize()
-        
+
         if len(split_message) > 1:
-            player = split_message[1].capitalize()
+            if split_message[1] == "week":
+                search_date = search_date - timedelta(days=7)
+            elif split_message[1] == "month":
+                search_date = search_date - timedelta(days=30)
+            elif split_message[1] == "all":
+                search_date = search_date - timedelta(days=10000)
+            elif split_message[1] != "day":
+                return ["Invalid time frame: .stats [day/week/month/all] [player]"]
 
-        stats_today = mousebot_stats.find_one({"name": player, "time": today})
+        if len(split_message) > 2:
+            player = split_message[2].capitalize()
 
-        if stats_today is None:
+        stats = mousebot_stats.find_one({"name": player, "time": { "$gte": search_date.strftime("%Y/%m/%d"), "$lte": today } })
+
+        if stats is None:
             return ["No stats found for player today"]
 
         await tfm_bot.sendCommand(f"profile {player}")
@@ -483,16 +494,16 @@ async def process_command(message, origin, author, discord_channel=None):
             return ["Player not online or not found"]
         
         stats_differences = {
-            "cheese": int(profile.stats.gatheredCheese - stats_today["cheese"]),
-            "firsts": int(profile.stats.firsts - stats_today["firsts"]),
-            "bootcamps": int(profile.stats.bootcamps - stats_today["bootcamps"]),
-            "normalModeSaves": int(profile.stats.normalModeSaves - stats_today["normalModeSaves"]),
-            "hardModeSaves": int(profile.stats.hardModeSaves - stats_today["hardModeSaves"]),
-            "divineModeSaves": int(profile.stats.divineModeSaves - stats_today["divineModeSaves"]),
-            "withoutSkillSaves": int(profile.stats.withoutSkillSaves - stats_today["withoutSkillSaves"])
+            "cheese": int(profile.stats.gatheredCheese - stats["cheese"]),
+            "firsts": int(profile.stats.firsts - stats["firsts"]),
+            "bootcamps": int(profile.stats.bootcamps - stats["bootcamps"]),
+            "normalModeSaves": int(profile.stats.normalModeSaves - stats["normalModeSaves"]),
+            "hardModeSaves": int(profile.stats.hardModeSaves - stats["hardModeSaves"]),
+            "divineModeSaves": int(profile.stats.divineModeSaves - stats["divineModeSaves"]),
+            "withoutSkillSaves": int(profile.stats.withoutSkillSaves - stats["withoutSkillSaves"])
         }
 
-        return [f"{player} stat gains today: {stats_differences['cheese']} cheese, {stats_differences['firsts']} first(s), {stats_differences['bootcamps']} bootcamp(s), {stats_differences['normalModeSaves']} normal save(s), {stats_differences['hardModeSaves']} hard save(s), {stats_differences['divineModeSaves']} divine save(s), {stats_differences['withoutSkillSaves']} without skill save(s)."]
+        return [f"{player} stat gains from {stats['time']}: {stats_differences['cheese']} cheese, {stats_differences['firsts']} first(s), {stats_differences['bootcamps']} bootcamp(s), {stats_differences['normalModeSaves']} normal save(s), {stats_differences['hardModeSaves']} hard save(s), {stats_differences['divineModeSaves']} divine save(s), {stats_differences['withoutSkillSaves']} without skill save(s)."]
 
     elif message.startswith(f"{PREFIX}discord"): # .discord
         return ["Join the Discord here: https://discord.gg/hjuXYvUFBd"]
