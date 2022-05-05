@@ -63,8 +63,9 @@ PREFIX="."
 
 @tfm_bot.event
 async def on_login_ready(*a):
-    log_message('Logging in ...')
+    log_message('Logging in..')
     await tfm_bot.login(config['username'], config['password'], config['encrypted'], config['room'])
+    log_message('Logging in.. Done')
 
 
 @tfm_bot.event
@@ -80,12 +81,12 @@ async def on_ready():
 
     log_message("Getting Tribe data..")
     TRIBE.append(await tfm_bot.getTribe())
-    log_message("Getting Tribe data: Done")
+    log_message("Getting Tribe data.. Done")
 
     log_message("Getting Shop data..")
     await tfm_bot.requestShopList()
     SHOP.append(await tfm_bot.wait_for('on_shop', timeout=60))
-    log_message("Getting Shop data: Done")
+    log_message("Getting Shop data.. Done")
 
     await get_stats()
 
@@ -693,7 +694,7 @@ async def get_stats():
 
 
     
-    log_message("Getting Stats: Done")
+    log_message("Getting Stats.. Done")
 
 
 # Main bot loops
@@ -704,9 +705,12 @@ try:
 except aiotfm.errors.AiotfmException:
     log_message("Server Unreachable, sleeping 2 mins..")
     time.sleep("120")
-    sys.exit(1)
+    sys.exit(0)
 
+try:
+    loop.create_task(discord_bot.run(TOKEN))
 
-loop.create_task(discord_bot.run(TOKEN))
-
-loop.run_forever()
+    loop.run_forever()
+except RuntimeError:
+    log_message("Bot Restarting..")
+    sys.exit(0)
