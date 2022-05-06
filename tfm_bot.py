@@ -83,12 +83,12 @@ async def on_ready():
     TRIBE.append(await tfm_bot.getTribe())
     log_message("Getting Tribe data.. Done")
 
+    await get_stats()
+
     log_message("Getting Shop data..")
     await tfm_bot.requestShopList()
     SHOP.append(await tfm_bot.wait_for('on_shop', timeout=60))
     log_message("Getting Shop data.. Done")
-
-    await get_stats()
 
 
 @tfm_bot.event
