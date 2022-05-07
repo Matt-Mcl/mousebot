@@ -700,8 +700,8 @@ async def get_stats():
                 }
 
                 mousebot_stats.insert_one(stats_dict)
-            except asyncio.exceptions.TimeoutError:
-                print(f"ERROR Occured while getting stats for {name.capitalize()}")
+            except Exception as e:
+                print(f"ERROR Occured while getting stats for {name.capitalize()} ({e})")
 
 
     
