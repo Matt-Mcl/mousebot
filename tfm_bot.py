@@ -254,7 +254,7 @@ async def on_player_won(player, order, player_time):
 
     if order == 1:
         await tfm_bot.sendCommand(f"profile {username}")
-        profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == username, timeout=3)
+        profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == username, timeout=5)
         firsts = profile.stats.firsts
         title = ""
         for item in db_titles:
@@ -268,15 +268,18 @@ async def on_player_won(player, order, player_time):
     player_record = mousebot_enums.find_one({"type": "opt", "data.name": username, "data.optin": True})
 
     if player_record is not None:
+        # Optimise this later to store records for maps as they come through
+        # rather than checking the map each time its beaten.
         records = await get_records(RECENT_MAPS[0].split('@')[1].split(' ')[0])
 
         if not records:
             return
 
         first_record = records[0][0]
+        normal_time = float(first_record.split(' ')[2][:-1]) + 3
 
-        await tfm_bot.whisper(username, f"The record for this map is {first_record}")
-        log_message(f"[Whisper] [{username}] The record for this map is {first_record}")
+        await tfm_bot.whisper(username, f"The record for this map is {first_record} ({normal_time}s)")
+        log_message(f"[Whisper] [{username}] The record for this map is {first_record} ({normal_time}s)")
         
 
 
@@ -305,7 +308,7 @@ async def process_command(message, origin, author, discord_channel=None):
 
     elif message == f"{PREFIX}time": # .time
         await tfm_bot.sendCommand("time")
-        time_string = await tfm_bot.wait_for('on_time', timeout=3)
+        time_string = await tfm_bot.wait_for('on_time', timeout=5)
         return [time_string]
 
     elif message.startswith(f"{PREFIX}mom"): # .mom
@@ -336,7 +339,7 @@ async def process_command(message, origin, author, discord_channel=None):
             author_name = split_message[1]
         await tfm_bot.sendCommand(f"profile {author_name}")
         try:
-            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.capitalize(), timeout=3)
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.capitalize(), timeout=5)
             cheese = profile.stats.gatheredCheese
             firsts = profile.stats.firsts
             bootcamps = profile.stats.bootcamps
@@ -513,7 +516,7 @@ async def process_command(message, origin, author, discord_channel=None):
 
         await tfm_bot.sendCommand(f"profile {player}")
         try:
-            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == player, timeout=3)
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == player, timeout=5)
         except asyncio.exceptions.TimeoutError:
             return ["Player not online or not found"]
         
@@ -611,9 +614,8 @@ async def process_command(message, origin, author, discord_channel=None):
             subprocess.run(["sudo", "systemctl", "restart", "mousebot.service"])
 
         elif message == f"{PREFIX}status": # .status
-            status = subprocess.Popen(["systemctl", "status", "mousebot.service"], stdout=subprocess.PIPE)
-            output = subprocess.check_output(["grep", "active"], stdin=status.stdout).decode("utf-8").rsplit(" ", 3)[0].strip()
-            return [output]
+            status = subprocess.check_output(["systemctl", "status", "mousebot.service"])
+            return [status.decode('utf-8').split("\n")[2].strip()]
 
 
     # Owner Commands
