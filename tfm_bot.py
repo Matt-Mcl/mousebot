@@ -8,6 +8,8 @@ import aiotfm
 import random
 import pymongo
 import requests
+from gazpacho import get, Soup
+from gazpacho.utils import HTTPError
 from math import ceil
 from datetime import datetime, timedelta
 from discord import Embed
@@ -448,21 +450,38 @@ async def process_command(message, origin, author, discord_channel=None):
     elif message.startswith(f"{PREFIX}record"): #.record <map>
         if len(split_message) == 1:
             return ["Please specify map code"]
+
         map_code = split_message[1]
-        if map_code[0] != "@":
-            map_code = f"@{map_code}"
-        db_record = list(mousebot_map_records.find({"code": map_code}, { "_id": 0}))
-        if len(db_record) == 0:
-            return ["No records found"]
+        if map_code[0] == "@":
+            map_code = map_code[1:]
+
+        url = f"https://tfmrecords.tk/maps/{map_code}/"
+
+        try:
+            html = get(url)
+        except HTTPError:
+            return["No records found"]
+        
+        soup = Soup(html)
+
+        category = soup.find("sup")[-1].text
+
+        records_table = soup.find("table")[0]
+
+        if not isinstance(records_table.find("tr"), list):
+            return["No records found"]
+
+        records = []
+
+        for item in records_table.find("tr")[1:]:
+            data = item.find("td")
+            records.append(f"{data[1].text} - {data[2].text}s")
 
         if len(split_message) == 3 and split_message[2] == "all":
-            records = []
-            for i, v in enumerate(db_record):
-                records.append(f"[{i+1}: {v['name']} - {v['time']}]")
                 
-            return [f"Records: {', '.join(records)}. ({db_record[0]['code']} - {db_record[0]['category']})"]
+            return [f"Records: {', '.join(records)}. ({map_code} - {category})"]
 
-        return [f"{db_record[0]['name']} - {db_record[0]['time']}. ({db_record[0]['code']} - {db_record[0]['category']})"]
+        return [f"{records[0]}. ({map_code} - {category})"]
 
     elif message.startswith(f"{PREFIX}stats"): # .stats [day/week/month/all] [player]
         today = datetime.now().strftime("%Y/%m/%d")
