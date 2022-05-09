@@ -35,6 +35,16 @@ EIGHT_BALL = ["It is certain.", "It is decidedly so.", "Without a doubt.", "Yes 
 RECENT_MAPS = []
 TRIBE = []
 SHOP = []
+JOKES = []
+
+with open("/home/ubuntu/mousebot/statics/jokes.json") as f:
+    jokes_file = json.load(f)
+
+for key in jokes_file:
+    for joke in jokes_file[key]:
+        JOKES.append(joke)
+
+del jokes_file
 
 # Init Mongo DB
 mongo_client = pymongo.MongoClient()
@@ -249,11 +259,25 @@ async def on_player_won(player, order, player_time):
         title = ""
         for item in db_titles:
             if item['type'] == "cheese_first" and item['number'] > firsts:
-                title = f" You need {item['number'] - firsts} more firsts for «{'/'.join(item['titles'])}»"
+                title = f"You need {item['number'] - firsts} more firsts for «{'/'.join(item['titles'])}»"
                 break
 
-        log_message(f"[Whisper] {username}, You came first in {player_time} seconds.{title}")
-        await tfm_bot.whisper(username, f"You came in first in {player_time} seconds.{title}")
+        await tfm_bot.whisper(username, f"You came in first in {player_time} seconds. {title}")
+        log_message(f"[Whisper] [{username}] You came first in {player_time} seconds. {title}")
+
+    player_record = mousebot_enums.find_one({"type": "opt", "data.name": username, "data.optin": True})
+
+    if player_record is not None:
+        records = await get_records(RECENT_MAPS[0].split('@')[1].split(' ')[0])
+
+        if not records:
+            return
+
+        first_record = records[0][0]
+
+        await tfm_bot.whisper(username, f"The record for this map is {first_record}")
+        log_message(f"[Whisper] [{username}] The record for this map is {first_record}")
+        
 
 
 @tfm_bot.event
@@ -274,9 +298,9 @@ async def process_command(message, origin, author, discord_channel=None):
 
     # General commands
     if message == f"{PREFIX}help": # .help
-        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page], .sales, .stats [day/week/month/all] [player], .discord"]
+        commands = ["I'm a bot for the tribe Coffee Corner! Commands: .time, .mom, .joke, .title [player#tag], .online, .8ball <message>, .funcorp/fc, .selfie, .maps [page], .sales, .stats [day/week/month/all] [player], .discord, .optin, .optout"]
         if author_name.capitalize() in CONTROL:
-            commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room> [password], .lua <pastebin>, .restart, .status")
+            commands.append("Control Commands: .greetings add/clear/list <name> <greeting>, .control add/del <username>, .tribe, .room <room>, .lua <pastebin>, .restart, .status")
         return commands
 
     elif message == f"{PREFIX}time": # .time
@@ -285,15 +309,13 @@ async def process_command(message, origin, author, discord_channel=None):
         return [time_string]
 
     elif message.startswith(f"{PREFIX}mom"): # .mom
-        with open(f"{directory}/statics/jokes.txt", "r") as file:
-            jokes = file.read().split("\n")
-            joke = random.choice(jokes)
-            
-            if len(split_message) > 1:
-                regex = re.compile(re.escape("your"), re.IGNORECASE)
-                joke = regex.sub(f"{' '.join(split_message[1:])}'s", joke)
+        joke = random.choice(JOKES)
+        
+        if len(split_message) > 1:
+            regex = re.compile(re.escape("Yo"), re.IGNORECASE)
+            joke = regex.sub(f"{' '.join(split_message[1:])}'s", joke)
 
-            return [joke]
+        return [joke]
         
 
     elif message == f"{PREFIX}joke": # .joke
@@ -455,33 +477,16 @@ async def process_command(message, origin, author, discord_channel=None):
         if map_code[0] == "@":
             map_code = map_code[1:]
 
-        url = f"https://tfmrecords.tk/maps/{map_code}/"
+        records = await get_records(map_code)
 
-        try:
-            html = get(url)
-        except HTTPError:
-            return["No records found"]
-        
-        soup = Soup(html)
-
-        category = soup.find("sup")[-1].text
-
-        records_table = soup.find("table")[0]
-
-        if not isinstance(records_table.find("tr"), list):
-            return["No records found"]
-
-        records = []
-
-        for item in records_table.find("tr")[1:]:
-            data = item.find("td")
-            records.append(f"{data[1].text} - {data[2].text}s")
+        if not records:
+            return ["No records found"]
 
         if len(split_message) == 3 and split_message[2] == "all":
                 
-            return [f"Records: {', '.join(records)}. ({map_code} - {category})"]
+            return [f"Records: {', '.join(records[0])}. (@{map_code} - {records[1]})"]
 
-        return [f"{records[0]}. ({map_code} - {category})"]
+        return [f"{records[0][0]}. ({map_code} - {records[1]})"]
 
     elif message.startswith(f"{PREFIX}stats"): # .stats [day/week/month/all] [player]
         today = datetime.now().strftime("%Y/%m/%d")
@@ -527,6 +532,23 @@ async def process_command(message, origin, author, discord_channel=None):
     elif message.startswith(f"{PREFIX}discord"): # .discord
         return ["Join the Discord here: https://discord.gg/hjuXYvUFBd"]
 
+    elif message.startswith(f"{PREFIX}optin"): # .optin
+        player = mousebot_enums.find_one({"type": "opt", "name": author_name.capitalize()})
+        if player == None:
+            mousebot_enums.insert_one({"type": "opt", "data" : {"name": author_name.capitalize(), "optin": True}})
+        else:
+            mousebot_enums.update_one({"type": "opt", "data.name": author_name.capitalize()}, {"$set": {"data.optin": True}})
+        
+        return [f"Optted {author_name.capitalize()} in."]
+
+    elif message.startswith(f"{PREFIX}optout"): # .optout
+        player = mousebot_enums.find_one({"type": "opt", "data.name": author_name.capitalize()})
+        if player == None:
+            mousebot_enums.insert_one({"type": "opt", "data" : {"name": author_name.capitalize(), "optin": False}})
+        else:
+            mousebot_enums.update_one({"type": "opt", "data.name": author_name.capitalize()}, {"$set": {"data.optin": False}})
+
+        return [f"Optted {author_name.capitalize()} out."]
 
     # Admin commands
     if author_name.capitalize() in CONTROL:
@@ -565,7 +587,7 @@ async def process_command(message, origin, author, discord_channel=None):
                 return ["Room join failed, try again"]
             return [f"Joined tribe house"]
 
-        elif message.startswith(f"{PREFIX}room"): # .room <room> [password]
+        elif message.startswith(f"{PREFIX}room"): # .room <room>
             await tfm_bot.joinRoom(" ".join(split_message[1:]))
             try:
                 room = await tfm_bot.wait_for('on_joined_room', timeout=5)
@@ -722,9 +744,33 @@ async def get_stats():
             except Exception as e:
                 print(f"ERROR Occured while getting stats for {name.capitalize()} ({e})")
 
-
-    
     log_message("Getting Stats.. Done")
+
+
+async def get_records(map_code):
+    url = f"https://tfmrecords.tk/maps/{map_code}/"
+
+    try:
+        html = get(url)
+    except HTTPError:
+        return False
+    
+    soup = Soup(html)
+
+    category = soup.find("sup")[-1].text
+
+    records_table = soup.find("table")[0]
+
+    if not isinstance(records_table.find("tr"), list):
+        return False
+
+    records = []
+
+    for item in records_table.find("tr")[1:]:
+        data = item.find("td")
+        records.append(f"{data[1].text} - {data[2].text}s")
+
+    return (records, category)
 
 
 # Main bot loops
