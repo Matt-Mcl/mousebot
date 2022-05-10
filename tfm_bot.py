@@ -148,6 +148,8 @@ async def on_tribe_message(author, message):
 
 @tfm_bot.event
 async def on_member_connected(name):
+    await update_tribe()
+
     channel = discord_bot.get_channel(int(TRIBE_CHAT))
     db_greetings = list(mousebot_greetings.aggregate([
         { "$match": {"name": name.capitalize()} },
@@ -165,6 +167,8 @@ async def on_member_connected(name):
 
 @tfm_bot.event
 async def on_member_disconnected(name):
+    await update_tribe()
+
     channel = discord_bot.get_channel(int(TRIBE_CHAT))
     await send_discord_message(channel, f"[TFM] {name.capitalize()} has disconnected.")
 
@@ -536,22 +540,26 @@ async def process_command(message, origin, author, discord_channel=None):
         return ["Join the Discord here: https://discord.gg/hjuXYvUFBd"]
 
     elif message.startswith(f"{PREFIX}optin"): # .optin
-        player = mousebot_enums.find_one({"type": "opt", "name": author_name.capitalize()})
+        player = mousebot_enums.find_one({"type": "opt", "data.name": author_name.capitalize()})
+        print(player['data']['optin'], type(player['data']['optin']))
         if player == None:
             mousebot_enums.insert_one({"type": "opt", "data" : {"name": author_name.capitalize(), "optin": True}})
-        else:
+        elif not player['data']['optin']:
             mousebot_enums.update_one({"type": "opt", "data.name": author_name.capitalize()}, {"$set": {"data.optin": True}})
-        
-        return [f"Optted {author_name.capitalize()} in."]
+            return [f"Optted {author_name.capitalize()} in."]
+        else:
+            return [f"{author_name.capitalize()} you are already optted in."]
 
     elif message.startswith(f"{PREFIX}optout"): # .optout
         player = mousebot_enums.find_one({"type": "opt", "data.name": author_name.capitalize()})
+        print(player['data']['optin'], type(player['data']['optin']))
         if player == None:
             mousebot_enums.insert_one({"type": "opt", "data" : {"name": author_name.capitalize(), "optin": False}})
-        else:
+        elif player['data']['optin']:
             mousebot_enums.update_one({"type": "opt", "data.name": author_name.capitalize()}, {"$set": {"data.optin": False}})
-
-        return [f"Optted {author_name.capitalize()} out."]
+            return [f"Optted {author_name.capitalize()} out."]
+        else:
+            return [f"{author_name.capitalize()} you are already optted out."]        
 
     # Admin commands
     if author_name.capitalize() in CONTROL:
@@ -706,16 +714,20 @@ async def send_discord_message(channel, message):
 
 
 async def tribe_status_message(message):
+    await update_tribe()
     await send_tribe_message(message)
     log_message(f"[Tribe Status] {message}")
     channel = discord_bot.get_channel(int(LOG_CHAT))
     await send_discord_message(channel, f"[Tribe Status] {message}")
-    TRIBE[0] = await tfm_bot.getTribe()
 
 
 def log_message(message, end="\n"):
     now = datetime.now().strftime("%Y/%m/%d, %H:%M:%S")
     print(f"[{now}] {message}", end=end)
+
+
+async def update_tribe():
+    TRIBE[0] = await tfm_bot.getTribe()
 
 
 async def get_stats():
