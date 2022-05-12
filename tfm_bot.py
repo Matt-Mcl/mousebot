@@ -30,7 +30,7 @@ LOG_CHAT = config['LOG_CHAT']
 OWNER = config['OWNER']
 CONTROL = config['CONTROL'][:]
 
-GREETINGS = ["Howdy, partner!", "Hey, howdy, hi!", "Put that Coffee Cup down!", "Ahoy, matey!", "Hiya! Welcome back!", "This Message may be recorded for training purposes- I.. I mean Welcome back!", "Yo!", "What's up?", "Sup?", "Take a deep breath in.. Namaste! SHIT I DIDN'T NOTICE YOU THERE!! I mean.. Welcome back, creep!", "New phone, who dis?"]
+GREETINGS = ["Howdy, partner!", "Hey, howdy, hi!", "Put that Coffee Cup down!", "Ahoy, matey!", "Hiya! Welcome back!", "This Message may be recorded for training purposes- I.. I mean Welcome back!", "Yo!", "What's up?", "Sup?", "Take a deep breath in.. Namaste! SHIT I DIDN'T NOTICE YOU THERE!! I mean.. Welcome back, creep!", "New phone, who dis?", "How it be?", "Good day, friend!"]
 EIGHT_BALL = ["It is certain.", "It is decidedly so.", "Without a doubt.", "Yes definitely.", "You may rely on it.", "As I see it, yes.", "Most likely.", "Outlook good.", "Yes.", "Signs point to yes.", "Reply hazy, try again.", "Ask again later.", "Better not tell you now.", "Cannot predict now.", "Concentrate and ask again.", "Don't count on it.", "My reply is no.", "My sources say no.", "Outlook not so good.", "Very doubtful."]
 RECENT_MAPS = []
 TRIBE = []
@@ -261,7 +261,7 @@ async def on_player_won(player, order, player_time):
 
     if order == 1:
         await tfm_bot.sendCommand(f"profile {username}")
-        profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == username, timeout=5)
+        profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == username, timeout=3)
         firsts = profile.stats.firsts
         title = ""
         for item in db_titles:
@@ -281,7 +281,7 @@ async def on_player_won(player, order, player_time):
             return
 
         first_record = records[0][0]
-        normal_time = float(first_record.split(' ')[2][:-1]) + 3
+        normal_time = round(float(first_record.split(' ')[2][:-1]) + 3, 2)
 
         await tfm_bot.whisper(username, f"The record for this map is {first_record} ({normal_time}s)")
         log_message(f"[Whisper] [{username}] The record for this map is {first_record} ({normal_time}s)")
@@ -344,7 +344,7 @@ async def process_command(message, origin, author, discord_channel=None):
             author_name = split_message[1]
         await tfm_bot.sendCommand(f"profile {author_name}")
         try:
-            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.capitalize(), timeout=5)
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == author_name.capitalize(), timeout=3)
             cheese = profile.stats.gatheredCheese
             firsts = profile.stats.firsts
             bootcamps = profile.stats.bootcamps
@@ -498,7 +498,6 @@ async def process_command(message, origin, author, discord_channel=None):
         return [f"{records[0][0]}. ({map_code} - {records[1]})"]
 
     elif message.startswith(f"{PREFIX}stats"): # .stats [day/week/month/all] [player]
-        today = datetime.now().strftime("%Y/%m/%d")
         search_date = datetime.now()
         player = author_name.capitalize()
 
@@ -515,28 +514,52 @@ async def process_command(message, origin, author, discord_channel=None):
         if len(split_message) > 2:
             player = split_message[2].capitalize()
 
-        stats = mousebot_stats.find_one({"name": player, "time": { "$gte": search_date.strftime("%Y/%m/%d"), "$lte": today } })
+        stats = list(mousebot_stats.find({"name": player}))
+        latest_stats = stats[-1]
 
         if stats is None:
-            return ["No stats found for player today"]
+            return ["No stats found for player"]
+
+        for item in stats:
+            if item['time'] >= search_date.strftime("%Y/%m/%d"):
+                stats = item
+                break
+        else:
+            stats = stats[-1]
 
         await tfm_bot.sendCommand(f"profile {player}")
         try:
-            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == player, timeout=5)
-        except asyncio.exceptions.TimeoutError:
-            return ["Player not online or not found"]
-        
-        stats_differences = {
-            "cheese": int(profile.stats.gatheredCheese - stats["cheese"]),
-            "firsts": int(profile.stats.firsts - stats["firsts"]),
-            "bootcamps": int(profile.stats.bootcamps - stats["bootcamps"]),
-            "normalModeSaves": int(profile.stats.normalModeSaves - stats["normalModeSaves"]),
-            "hardModeSaves": int(profile.stats.hardModeSaves - stats["hardModeSaves"]),
-            "divineModeSaves": int(profile.stats.divineModeSaves - stats["divineModeSaves"]),
-            "withoutSkillSaves": int(profile.stats.withoutSkillSaves - stats["withoutSkillSaves"])
-        }
+            profile = await tfm_bot.wait_for('on_profile', lambda p: p.username == player, timeout=3)
 
-        return [f"{player} stat gains from {stats['time']}: {stats_differences['cheese']} cheese, {stats_differences['firsts']} first(s), {stats_differences['bootcamps']} bootcamp(s), {stats_differences['normalModeSaves']} normal save(s), {stats_differences['hardModeSaves']} hard save(s), {stats_differences['divineModeSaves']} divine save(s), {stats_differences['withoutSkillSaves']} without skill save(s)."]
+            stats_differences = {
+                "cheese": int(profile.stats.gatheredCheese - stats["cheese"]),
+                "firsts": int(profile.stats.firsts - stats["firsts"]),
+                "bootcamps": int(profile.stats.bootcamps - stats["bootcamps"]),
+                "normalModeSaves": int(profile.stats.normalModeSaves - stats["normalModeSaves"]),
+                "hardModeSaves": int(profile.stats.hardModeSaves - stats["hardModeSaves"]),
+                "divineModeSaves": int(profile.stats.divineModeSaves - stats["divineModeSaves"]),
+                "withoutSkillSaves": int(profile.stats.withoutSkillSaves - stats["withoutSkillSaves"])
+            }
+
+            return [f"{player} stat gains from {stats['time']}: {stats_differences['cheese']} cheese, {stats_differences['firsts']} first(s), {stats_differences['bootcamps']} bootcamp(s), {stats_differences['normalModeSaves']} normal save(s), {stats_differences['hardModeSaves']} hard save(s), {stats_differences['divineModeSaves']} divine save(s), {stats_differences['withoutSkillSaves']} without skill save(s)."]
+        except asyncio.exceptions.TimeoutError:
+            if split_message[1] == "day":
+                return ["Can't get stats for player today as they are offline"]
+            try:
+                stats_differences = {
+                    "cheese": int(latest_stats["cheese"] - stats["cheese"]),
+                    "firsts": int(latest_stats["firsts"] - stats["firsts"]),
+                    "bootcamps": int(latest_stats["bootcamps"] - stats["bootcamps"]),
+                    "normalModeSaves": int(latest_stats["normalModeSaves"] - stats["normalModeSaves"]),
+                    "hardModeSaves": int(latest_stats["hardModeSaves"] - stats["hardModeSaves"]),
+                    "divineModeSaves": int(latest_stats["divineModeSaves"] - stats["divineModeSaves"]),
+                    "withoutSkillSaves": int(latest_stats["withoutSkillSaves"] - stats["withoutSkillSaves"])
+                }
+
+                return [f"(Offline) {player} stat gains from {stats['time']} up to {latest_stats['time']}: {stats_differences['cheese']} cheese, {stats_differences['firsts']} first(s), {stats_differences['bootcamps']} bootcamp(s), {stats_differences['normalModeSaves']} normal save(s), {stats_differences['hardModeSaves']} hard save(s), {stats_differences['divineModeSaves']} divine save(s), {stats_differences['withoutSkillSaves']} without skill save(s)."]
+            except IndexError:
+                return ["Player offline and no stats from yesterday"]
+
 
     elif message.startswith(f"{PREFIX}discord"): # .discord
         return ["Join the Discord here: https://discord.gg/hjuXYvUFBd"]
