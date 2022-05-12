@@ -235,13 +235,15 @@ async def on_kicked_member(name):
 
 @tfm_bot.event
 async def on_map_load(map_data):
+    records = await get_records(map_data['code'])
+
     if len(map_data['author']) == 0 or str(map_data['category']) == "87":
-        RECENT_MAPS.insert(0, f"(@{map_data['code']} - Vanilla)")
+        RECENT_MAPS.insert(0, (f"(@{map_data['code']} - Vanilla)", records))
         return
     else:
         category_name = mousebot_enums.find_one({"type": "map_category", "data.id": str(map_data['category'])})['data']
         try:
-            RECENT_MAPS.insert(0, f"({map_data['author']} - @{map_data['code']} - {category_name['name']})")
+            RECENT_MAPS.insert(0, (f"({map_data['author']} - @{map_data['code']} - {category_name['name']})", records))
             mousebot_maps.insert_one(map_data)
         except pymongo.errors.DuplicateKeyError:
             pass
@@ -253,6 +255,7 @@ async def on_map_load(map_data):
 async def on_player_won(player, order, player_time):
     username = player.username.capitalize()
     member_names = [member.name.capitalize() for member in TRIBE[0].members]
+
     if username not in member_names:
         return
 
@@ -272,11 +275,9 @@ async def on_player_won(player, order, player_time):
     player_record = mousebot_enums.find_one({"type": "opt", "data.name": username, "data.optin": True})
 
     if player_record is not None:
-        # Optimise this later to store records for maps as they come through
-        # rather than checking the map each time its beaten.
-        records = await get_records(RECENT_MAPS[0].split('@')[1].split(' ')[0])
+        records = RECENT_MAPS[0][1]
 
-        if not records:
+        if records is None:
             return
 
         first_record = records[0][0]
@@ -474,7 +475,8 @@ async def process_command(message, origin, author, discord_channel=None):
         if len(split_message) > 1:
             page = int(split_message[1])
         offset = (page - 1) * 5
-        return [", ".join(RECENT_MAPS[0 + offset:5 + offset])]
+        # Picks out just maps from tuples for maps, records
+        return [", ".join([item[0] for item in RECENT_MAPS[0 + offset:5 + offset]])]
     
     elif message.startswith(f"{PREFIX}record"): #.record <map>
         if len(split_message) == 1:
@@ -486,7 +488,7 @@ async def process_command(message, origin, author, discord_channel=None):
 
         records = await get_records(map_code)
 
-        if not records:
+        if records is None:
             return ["No records found"]
 
         if len(split_message) == 3 and split_message[2] == "all":
@@ -767,7 +769,7 @@ async def get_records(map_code):
     try:
         html = get(url)
     except HTTPError:
-        return False
+        return None
     
     soup = Soup(html)
 
@@ -776,7 +778,7 @@ async def get_records(map_code):
     records_table = soup.find("table")[0]
 
     if not isinstance(records_table.find("tr"), list):
-        return False
+        return None
 
     records = []
 
