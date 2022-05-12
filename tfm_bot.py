@@ -566,25 +566,25 @@ async def process_command(message, origin, author, discord_channel=None):
 
     elif message.startswith(f"{PREFIX}optin"): # .optin
         player = mousebot_enums.find_one({"type": "opt", "data.name": author_name.capitalize()})
-        print(player['data']['optin'], type(player['data']['optin']))
         if player == None:
             mousebot_enums.insert_one({"type": "opt", "data" : {"name": author_name.capitalize(), "optin": True}})
         elif not player['data']['optin']:
             mousebot_enums.update_one({"type": "opt", "data.name": author_name.capitalize()}, {"$set": {"data.optin": True}})
-            return [f"Optted {author_name.capitalize()} in."]
         else:
             return [f"{author_name.capitalize()} you are already optted in."]
+        
+        return [f"Optted {author_name.capitalize()} in."]
 
     elif message.startswith(f"{PREFIX}optout"): # .optout
         player = mousebot_enums.find_one({"type": "opt", "data.name": author_name.capitalize()})
-        print(player['data']['optin'], type(player['data']['optin']))
         if player == None:
             mousebot_enums.insert_one({"type": "opt", "data" : {"name": author_name.capitalize(), "optin": False}})
         elif player['data']['optin']:
             mousebot_enums.update_one({"type": "opt", "data.name": author_name.capitalize()}, {"$set": {"data.optin": False}})
-            return [f"Optted {author_name.capitalize()} out."]
         else:
-            return [f"{author_name.capitalize()} you are already optted out."]        
+            return [f"{author_name.capitalize()} you are already optted out."]
+        
+        return [f"Optted {author_name.capitalize()} out."]
 
     # Admin commands
     if author_name.capitalize() in CONTROL:
