@@ -470,6 +470,19 @@ async def process_command(message, origin, author, discord_channel=None):
             code = f"admin = {{\"{author_name.capitalize()}\"}}\n" + code
             await tfm_bot.loadLua(code)
 
+    elif message.startswith(f"{PREFIX}survivor"): #.survivor
+        with open(f"{directory}/statics/survivor.lua", 'r') as f:
+            code = f.read()
+
+            if len(split_message) > 1:
+                map_code = split_message[1]
+                if map_code[0] == "@":
+                    map_code = map_code[1:]
+
+                code = f"map = \'{map_code}\'\n" + "\n".join(code.split("\n")[1:])
+
+            await tfm_bot.loadLua(code)
+
     elif message.startswith(f"{PREFIX}maps"): # .maps [page]
         page = 1
         if len(split_message) > 1:
