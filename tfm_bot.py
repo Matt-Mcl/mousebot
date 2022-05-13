@@ -281,10 +281,10 @@ async def on_player_won(player, order, player_time):
             return
 
         first_record = records[0][0]
-        normal_time = round(float(first_record.split(' ')[2][:-1]) + 3, 2)
+        normal_time = round(float(first_record['time']) + 3, 2)
 
-        await tfm_bot.whisper(username, f"The record for this map is {first_record} ({normal_time}s)")
-        log_message(f"[Whisper] [{username}] The record for this map is {first_record} ({normal_time}s)")
+        await tfm_bot.whisper(username, f"The record for this map is {first_record['name']} - {first_record['time']}s ({normal_time}s)")
+        log_message(f"[Whisper] [{username}] The record for this map is {first_record['name']} - {first_record['time']}s ({normal_time}s)")
         
 
 
@@ -499,16 +499,20 @@ async def process_command(message, origin, author, discord_channel=None):
         if map_code[0] == "@":
             map_code = map_code[1:]
 
-        records = await get_records(map_code)
+        records, category = await get_records(map_code)
 
         if records is None:
             return ["No records found"]
 
         if len(split_message) == 3 and split_message[2] == "all":
-                
-            return [f"Records: {', '.join(records[0])}. (@{map_code} - {records[1]})"]
+            records_string_list = []
 
-        return [f"{records[0][0]}. ({map_code} - {records[1]})"]
+            for record in records:
+                records_string_list.append(f"{record['name']} - {record['time']}s")
+                
+            return [f"Records: {', '.join(records_string_list)}. (@{map_code} - {category})"]
+
+        return [f"{records[0]['name']} - {records[0]['time']}s. (@{map_code} - {category})"]
 
     elif message.startswith(f"{PREFIX}stats"): # .stats [day/week/month/all] [player]
         search_date = datetime.now()
@@ -800,27 +804,37 @@ async def get_stats():
 
 
 async def get_records(map_code):
-    url = f"https://tfmrecords.tk/maps/{map_code}/"
-
-    try:
-        html = get(url)
-    except HTTPError:
-        return None
+    if str(map_code)[0] == "@":
+        map_code = str(map_code)[1:]
     
-    soup = Soup(html)
-
-    category = soup.find("sup")[-1].text
-
-    records_table = soup.find("table")[0]
-
-    if not isinstance(records_table.find("tr"), list):
-        return None
+    url = f"https://tfmrecords.tk/maps/{map_code}/"
 
     records = []
 
-    for item in records_table.find("tr")[1:]:
-        data = item.find("td")
-        records.append(f"{data[1].text} - {data[2].text}s")
+    try:
+        html = get(url)
+        soup = Soup(html)
+
+        category = soup.find("sup")[-1].text
+
+        records_table = soup.find("table")[0]
+
+        if isinstance(records_table.find("tr"), list):
+            for item in records_table.find("tr")[1:]:
+                data = item.find("td")
+                records.append({"name": data[1].text, "time": data[2].text})
+    except HTTPError:
+        pass
+    
+    db_records = list(mousebot_map_records.find({"code" : f"@{map_code}"}, {"_id": 0, "code": 0}))
+
+    if len(records) == 0 and len(db_records) > 0:
+        category = db_records[0]["category"]
+
+    records = sorted(records + db_records, key=lambda x: x["time"])
+
+    if len(records) == 0:
+        return None
 
     return (records, category)
 
