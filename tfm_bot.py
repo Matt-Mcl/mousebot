@@ -84,7 +84,7 @@ async def on_login_ready(*a):
 async def on_ready():
     log_message(f'Connected to the community platform in {tfm_bot.loop.time() - boot_time:.2f} seconds')
 
-    time.sleep(1)
+    asyncio.sleep(1)
     last_room = mousebot_enums.find_one({"type": "room"})['data']
     if last_room['is_tribe']:
         await tfm_bot.enterTribe()
@@ -101,6 +101,11 @@ async def on_ready():
     await tfm_bot.requestShopList()
     SHOP.append(await tfm_bot.wait_for('on_shop', timeout=60))
     log_message("Getting Shop data.. Done")
+
+
+@tfm_bot.event
+async def on_login_result(code, error1, error2):
+    log_message("LOGIN ERROR:", code, error1, error2)
 
 
 @tfm_bot.event
@@ -660,8 +665,7 @@ async def process_command(message, origin, author, discord_channel=None):
             await tfm_bot.loadLua(code.text)
         
         elif message == f"{PREFIX}restart": # .restart
-            subprocess.run(["sudo", "systemctl", "reset-failed", "mousebot.service"])
-            subprocess.run(["sudo", "systemctl", "restart", "mousebot.service"])
+            restart()
 
         elif message == f"{PREFIX}status": # .status
             status = subprocess.check_output(["systemctl", "status", "mousebot.service"])
@@ -834,20 +838,35 @@ async def get_records(map_code):
     records = sorted(records + db_records, key=lambda x: x["time"])
 
     if len(records) == 0:
-        return None
+        return None, None
 
     return (records, category)
+
+
+def restart():
+    subprocess.run(["sudo", "systemctl", "reset-failed", "mousebot.service"])
+    subprocess.run(["sudo", "systemctl", "restart", "mousebot.service"])
+
+
+async def check_connected():
+    await asyncio.sleep(300)
+    # Checks if the bot is connected by seeing if it's in a room
+    if tfm_bot.room is None:
+        log_message("TFM Bot failed to connect in 5 minutes. Restarting..")
+        restart()
 
 
 # Main bot loops
 loop = asyncio.get_event_loop()
 
+loop.create_task(check_connected())
+
 try:
     loop.create_task(tfm_bot.start())
 except aiotfm.errors.AiotfmException:
     log_message("Server Unreachable, sleeping 2 mins..")
-    time.sleep("120")
-    sys.exit(0)
+    asyncio.sleep(120)
+    restart()
 
 try:
     loop.create_task(discord_bot.run(TOKEN))
